@@ -16,12 +16,37 @@ A lightweight World of Warcraft addon that lets you browse every player title, s
 ```txt
 Epithet/
 ├── Epithet.toc              # Addon manifest (Interface 120001)
+├── Core/
+│   ├── Epithet.lua          # Addon bootstrap, slash commands, event wiring
+│   ├── Theme.lua            # Shared theme helpers and palette
+│   ├── TitleData.lua        # Live title scan and static data bridge
+│   ├── Filters.lua          # Filtering, sorting, and display list logic
+│   ├── Settings.lua         # Blizzard settings panel
+│   ├── SocialLayer.lua      # Target-frame title spotting overlay
+│   ├── Layouts.lua         # Social layout registry
+│   └── layouts/
+│       ├── classic.lua      # Classic layout implementation
+│       └── portrait.lua     # Portrait layout implementation
+├── UI/
+│   ├── MainFrame.xml        # Main window layout
+│   ├── MainFrame.lua        # Main window controller
+│   ├── TitleList.lua        # Virtualized title list
+│   ├── Sidebar.lua          # Filter sidebar
+│   └── Detail.lua           # Title detail panel
+├── Spotting/
+│   ├── TitleIndex.lua       # Runtime title fragment index
+│   ├── Capture.lua         # Spot capture and debounce logic
+│   ├── Log.lua              # Spot log persistence and import/export
+│   └── LogbookUI.lua        # Spotting log UI
 ├── data/
-│   └── Titles.lua           # Generated static title database
-├── core/
-│   ├── Core.lua             # Enumeration, scanning, data join logic
-│   └── UI.lua               # AceGUI-based browser frame
+│   ├── TitlesDB.lua         # Bundled static title database
+│   └── schema.json          # Data schema
+├── Locales/
+│   └── enGB.lua             # Default locale strings
 ├── libs/                    # Embedded Ace3 libraries (see below)
+├── icons/
+├── docs/
+├── scripts/
 ├── LICENSE
 └── README.md
 ```
