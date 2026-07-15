@@ -57,6 +57,25 @@ function ns.GetPortraitMode()
     return "3d"
 end
 
+function ns.IsTitleSpottingEnabled()
+    local profile = GetProfile()
+    return profile and profile.enabled == true
+end
+
+function Options:OpenSpottingSettings()
+    if BlizzardSettings and BlizzardSettings.OpenToCategory and self.category then
+        local category = self.category
+        local categoryID = (type(category) == "table" and category.GetID and category:GetID()) or category.ID or category
+        BlizzardSettings.OpenToCategory(categoryID)
+        return
+    end
+
+    if InterfaceOptionsFrame_OpenToCategory and self.panel then
+        InterfaceOptionsFrame_OpenToCategory(self.panel)
+        InterfaceOptionsFrame_OpenToCategory(self.panel)
+    end
+end
+
 local function RefreshAll()
     if ns.SocialLayer then
         ns.SocialLayer:ApplySettings()
@@ -151,7 +170,7 @@ function Options:Init()
             return ns.SocialLayer:GetLayoutOptions()
         end
         return {
-            { key = "classic", label = L["SOCIAL_LAYOUT_CLASSIC"] or "Current (Classic)" },
+            { key = "classic", label = L["SOCIAL_LAYOUT_CLASSIC"] or "Slimline" },
         }
     end
 
@@ -161,7 +180,7 @@ function Options:Init()
                 return option.label
             end
         end
-        return key or (L["SOCIAL_LAYOUT_CLASSIC"] or "Current (Classic)")
+        return key or (L["SOCIAL_LAYOUT_CLASSIC"] or "Slimline")
     end
 
     local layoutHeading = (T and T.Sans and T.Sans(canvas, 12, T.col.goldDim)) or canvas:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
@@ -450,6 +469,71 @@ function Options:Init()
         animatedPortraitToggle:SetChecked(profile == nil or profile.animatedPortrait ~= false)
     end
 
+    local fadeHeading = (T and T.Sans and T.Sans(canvas, 12, T.col.goldDim)) or canvas:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    fadeHeading:SetPoint("TOPLEFT", animatedPortraitToggle, "BOTTOMLEFT", 0, -14)
+    fadeHeading:SetText(L["SOCIAL_FADE_SECTION"] or "Fade")
+
+    local fadeToggle = MakeCheck(L["SOCIAL_FADE_ENABLE"] or "Fade target nameplates over time", -372,
+        function()
+            local profile = GetProfile()
+            return profile and profile.fadeNameplates == true
+        end,
+        function(value)
+            local profile = GetProfile()
+            if profile then profile.fadeNameplates = value end
+        end)
+
+    local fadeLabel = (T and T.Sans and T.Sans(canvas, 12, T.col.text)) or canvas:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    fadeLabel:SetText(L["SOCIAL_FADE_DURATION"] or "Fade delay")
+
+    local fadeSlider = CreateFrame("Slider", "EpithetFadeDurationSlider", canvas, "OptionsSliderTemplate")
+    fadeSlider:SetOrientation("HORIZONTAL")
+    fadeSlider:SetMinMaxValues(0.5, 20.0)
+    fadeSlider:SetValueStep(0.5)
+    if fadeSlider.SetObeyStepOnDrag then
+        fadeSlider:SetObeyStepOnDrag(true)
+    end
+    fadeSlider:SetWidth(280)
+    fadeSlider:SetHeight(16)
+
+    local fadeSliderText = _G[fadeSlider:GetName() .. "Text"]
+    local fadeSliderLow = _G[fadeSlider:GetName() .. "Low"]
+    local fadeSliderHigh = _G[fadeSlider:GetName() .. "High"]
+    if fadeSliderText and fadeSliderText.SetText then
+        fadeSliderText:SetText("")
+    end
+    if fadeSliderLow and fadeSliderLow.SetText then
+        fadeSliderLow:SetText("0.5s")
+    end
+    if fadeSliderHigh and fadeSliderHigh.SetText then
+        fadeSliderHigh:SetText("20s")
+    end
+
+    local fadeValueText = (T and T.Sans and T.Sans(canvas, 11, T.col.faint)) or canvas:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    fadeValueText:SetJustifyH("LEFT")
+
+    local function SetFadeValueText(value)
+        local seconds = tonumber(value) or 4.0
+        local fmt = L["SOCIAL_FADE_DURATION_FMT"] or "%.1f seconds before fade"
+        fadeValueText:SetText(string.format(fmt, seconds))
+    end
+
+    fadeSlider:SetScript("OnValueChanged", function(self_, value)
+        if Options and Options._refreshingFadeSlider then
+            SetFadeValueText(value)
+            return
+        end
+        local profile = GetProfile()
+        if profile then
+            profile.fadeDuration = value
+        end
+        SetFadeValueText(value)
+        RefreshAll()
+        if Options and Options.Refresh then
+            Options:Refresh()
+        end
+    end)
+
     local enabled = MakeCheck(L["SOCIAL_ENABLED"] or "Enable title spotting", -94,
         function()
             local profile = GetProfile()
@@ -458,6 +542,9 @@ function Options:Init()
         function(value)
             local profile = GetProfile()
             if profile then profile.enabled = value end
+            if ns.LogbookUI and ns.LogbookUI.HandleSpottingStateChanged then
+                ns.LogbookUI:HandleSpottingStateChanged()
+            end
         end)
 
     if enabled and enabled.text and enabled.text.SetTextColor then
@@ -469,7 +556,7 @@ function Options:Init()
     end
 
     local behaviourHeading = (T and T.Sans and T.Sans(canvas, 12, T.col.goldDim)) or canvas:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    behaviourHeading:SetPoint("TOPLEFT", 16, -348)
+    behaviourHeading:SetPoint("TOPLEFT", 16, -410)
     behaviourHeading:SetText(L["SOCIAL_BEHAVIOUR_SECTION"] or "Visibility Rules")
 
     local hideInCombat = MakeCheck(L["SOCIAL_HIDE_IN_COMBAT"] or "Hide target nameplate during combat", -370,
@@ -492,8 +579,18 @@ function Options:Init()
             if profile then profile.hideInGroup = value end
         end)
 
+    local spotNotify = MakeCheck(L["SOCIAL_SPOTTING_NOTIFY"] or "Show spotting confirmations in chat", -434,
+        function()
+            local profile = GetProfile()
+            return profile and profile.spotNotify ~= false
+        end,
+        function(value)
+            local profile = GetProfile()
+            if profile then profile.spotNotify = value end
+        end)
+
     local positionHeading = (T and T.Sans and T.Sans(canvas, 12, T.col.goldDim)) or canvas:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    positionHeading:SetPoint("TOPLEFT", 16, -434)
+    positionHeading:SetPoint("TOPLEFT", 16, -462)
     positionHeading:SetText(L["SOCIAL_POSITION_SECTION"] or "Position")
 
     local unlockTarget = MakeCheck(L["SOCIAL_TARGET_UNLOCK"] or "Unlock target nameplate (drag to move)", -456,
@@ -565,8 +662,24 @@ function Options:Init()
     animatedPortraitToggle:ClearAllPoints()
     animatedPortraitToggle:SetPoint("TOPLEFT", previewFunnyToggle, "BOTTOMLEFT", 0, -6)
 
+    fadeHeading:ClearAllPoints()
+    fadeHeading:SetPoint("TOPLEFT", animatedPortraitToggle, "BOTTOMLEFT", 0, -14)
+
+    fadeToggle:ClearAllPoints()
+    fadeToggle:SetPoint("TOPLEFT", fadeHeading, "BOTTOMLEFT", 0, -6)
+
+    fadeLabel:ClearAllPoints()
+    fadeLabel:SetPoint("TOPLEFT", fadeToggle.text, "BOTTOMLEFT", 0, -8)
+
+    fadeSlider:ClearAllPoints()
+    fadeSlider:SetPoint("TOPLEFT", fadeLabel, "BOTTOMLEFT", 0, -8)
+
+    fadeValueText:ClearAllPoints()
+    fadeValueText:SetPoint("LEFT", fadeSlider, "RIGHT", 10, 0)
+
     behaviourHeading:ClearAllPoints()
-    behaviourHeading:SetPoint("TOPLEFT", animatedPortraitToggle, "BOTTOMLEFT", 0, -14)
+    behaviourHeading:SetPoint("LEFT", fadeHeading, "LEFT", 0, 0)
+    behaviourHeading:SetPoint("TOP", fadeSlider, "BOTTOM", 0, -14)
 
     hideInCombat:ClearAllPoints()
     hideInCombat:SetPoint("TOPLEFT", behaviourHeading, "BOTTOMLEFT", 0, -6)
@@ -574,8 +687,11 @@ function Options:Init()
     hideInGroup:ClearAllPoints()
     hideInGroup:SetPoint("TOPLEFT", hideInCombat, "BOTTOMLEFT", 0, -8)
 
+    spotNotify:ClearAllPoints()
+    spotNotify:SetPoint("TOPLEFT", hideInGroup, "BOTTOMLEFT", 0, -8)
+
     positionHeading:ClearAllPoints()
-    positionHeading:SetPoint("TOPLEFT", hideInGroup, "BOTTOMLEFT", 0, -14)
+    positionHeading:SetPoint("TOPLEFT", spotNotify, "BOTTOMLEFT", 0, -14)
 
     unlockTarget:ClearAllPoints()
     unlockTarget:SetPoint("TOPLEFT", positionHeading, "BOTTOMLEFT", 0, -6)
@@ -611,9 +727,15 @@ function Options:Init()
         previewFrame,
         previewFunnyToggle,
         animatedPortraitToggle,
+        fadeHeading,
+        fadeToggle,
+        fadeLabel,
+        fadeSlider,
+        fadeValueText,
         behaviourHeading,
         hideInCombat,
         hideInGroup,
+        spotNotify,
         positionHeading,
         unlockTarget,
         resetTarget,
@@ -684,13 +806,36 @@ function Options:Init()
         RefreshLayoutPreview()
         previewFunnyToggle:Refresh()
         animatedPortraitToggle:Refresh()
+        fadeToggle:Refresh()
+
+        local profileFade = GetProfile()
+        local fadeDuration = (profileFade and tonumber(profileFade.fadeDuration)) or 4.0
+        if fadeDuration < 0.5 then fadeDuration = 0.5 end
+        if fadeDuration > 20.0 then fadeDuration = 20.0 end
+        if profileFade then profileFade.fadeDuration = fadeDuration end
+        Options._refreshingFadeSlider = true
+        fadeSlider:SetValue(fadeDuration)
+        Options._refreshingFadeSlider = false
+        SetFadeValueText(fadeDuration)
 
         for _, control in ipairs(dependentControls) do
             SetControlVisible(control, socialEnabled)
         end
 
+        local fadeEnabled = socialEnabled and profileFade and profileFade.fadeNameplates
+        if fadeEnabled then
+            fadeSlider:Enable()
+            fadeLabel:SetAlpha(1)
+            fadeValueText:SetAlpha(1)
+        else
+            fadeSlider:Disable()
+            fadeLabel:SetAlpha(0.55)
+            fadeValueText:SetAlpha(0.55)
+        end
+
         hideInCombat:Refresh()
         hideInGroup:Refresh()
+        spotNotify:Refresh()
         unlockTarget:Refresh()
         UpdateScrollBounds((socialEnabled and resetTarget) or enabled)
     end

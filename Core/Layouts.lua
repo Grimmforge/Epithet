@@ -9,7 +9,7 @@ ns.Layouts = Layouts
 
 Layouts.order = Layouts.order or {}
 Layouts.registry = Layouts.registry or {}
-Layouts.defaultKey = Layouts.defaultKey or "classic"
+Layouts.defaultKey = Layouts.defaultKey or "portrait"
 
 local WHITE = "Interface\\Buttons\\WHITE8X8"
 local CROWN_ICON = "Interface\\AddOns\\Epithet\\icons\\logo\\epithet-crown-mark-32"
@@ -26,7 +26,7 @@ local RARITY_GEMS = {
 
 local function RegisterFallbackClassic(self)
     self:RegisterLayout("classic", {
-        label = "Current (Classic)",
+        label = "Slimline",
         labelKey = "SOCIAL_LAYOUT_CLASSIC",
         metrics = {
             layoutStyle = "classic",
@@ -340,11 +340,20 @@ end
 
 function Layouts:GetLayoutOptions(L)
     local options = {}
+
+    if self.registry["portrait"] then
+        local portraitDef = self.registry["portrait"]
+        local portraitLabel = (portraitDef.labelKey and L and L[portraitDef.labelKey]) or portraitDef.label or "portrait"
+        options[#options + 1] = { key = "portrait", label = portraitLabel }
+    end
+
     for _, key in ipairs(self.order) do
+        if key ~= "portrait" then
         local def = self.registry[key]
         if def then
             local label = (def.labelKey and L and L[def.labelKey]) or def.label or key
             options[#options + 1] = { key = key, label = label }
+        end
         end
     end
     return options

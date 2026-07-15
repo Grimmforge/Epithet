@@ -44,7 +44,7 @@ if not Layouts or not Layouts.RegisterLayout then
 end
 
 Layouts:RegisterLayout("classic", {
-    label = "Current (Classic)",
+    label = "Slimline",
     labelKey = "SOCIAL_LAYOUT_CLASSIC",
     metrics = {
         layoutStyle = "classic",

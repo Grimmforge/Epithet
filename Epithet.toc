@@ -32,6 +32,12 @@ Core\Settings.lua
 Core\SocialLayer.lua
 Core\Epithet.lua
 
+# Spotting
+Spotting\TitleIndex.lua
+Spotting\Log.lua
+Spotting\Capture.lua
+Spotting\LogbookUI.lua
+
 # UI
 UI\MainFrame.xml
 UI\MainFrame.lua

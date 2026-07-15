@@ -1,0 +1,256 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- Copyright (c) Grimmforge
+
+local _, ns = ...
+local L = ns.L
+
+local Capture = {}
+ns.SpottingCapture = Capture
+
+local C_Timer = C_Timer
+local GetTime = GetTime
+local UnitExists = UnitExists
+local UnitGUID = UnitGUID
+local UnitIsPlayer = UnitIsPlayer
+local UnitIsUnit = UnitIsUnit
+local UnitName = UnitName
+local UnitPVPName = UnitPVPName
+local UnitClass = UnitClass
+
+local RETRY_DELAY = 0.3
+local RETRY_WINDOW = 1.0
+local GUID_DEBOUNCE_SECONDS = 0.75
+
+function Capture:Init()
+    if self.initialized then return end
+    self.initialized = true
+
+    self.frame = CreateFrame("Frame")
+    self.frame:SetScript("OnEvent", function(_, event, ...)
+        if self[event] then
+            self[event](self, ...)
+        end
+    end)
+
+    self.frame:RegisterEvent("PLAYER_TARGET_CHANGED")
+    self.frame:RegisterEvent("UNIT_NAME_UPDATE")
+
+    self.lastGUID = nil
+    self.lastAt = 0
+    self.retryGUID = nil
+    self.retryDeadline = 0
+    self.retryTimerPending = false
+end
+
+function Capture:IsEnabled()
+    if not ns.IsTitleSpottingEnabled then
+        return false
+    end
+    return ns.IsTitleSpottingEnabled()
+end
+
+function Capture:IsNotifyEnabled()
+    local profile = ns.Epithet and ns.Epithet.db and ns.Epithet.db.profile and ns.Epithet.db.profile.social
+    if not profile then
+        return false
+    end
+    return profile.spotNotify ~= false
+end
+
+function Capture:ShouldDebounce(guid)
+    if not guid then
+        return true
+    end
+
+    local now = GetTime()
+    if self.lastGUID == guid and (now - (self.lastAt or 0)) <= GUID_DEBOUNCE_SECONDS then
+        return true
+    end
+
+    return false
+end
+
+function Capture:MarkProcessed(guid)
+    self.lastGUID = guid
+    self.lastAt = GetTime()
+end
+
+function Capture:QueueRetry(guid)
+    if not guid then return end
+
+    self.retryGUID = guid
+    self.retryDeadline = GetTime() + RETRY_WINDOW
+
+    if self.retryTimerPending or not C_Timer or not C_Timer.After then
+        return
+    end
+
+    self.retryTimerPending = true
+    C_Timer.After(RETRY_DELAY, function()
+        self.retryTimerPending = false
+        if not self.retryGUID then return end
+        if GetTime() > (self.retryDeadline or 0) then
+            self.retryGUID = nil
+            return
+        end
+        if UnitGUID("target") ~= self.retryGUID then
+            self.retryGUID = nil
+            return
+        end
+        self:TryCapture("target", true)
+    end)
+end
+
+function Capture:NotifyNewSpot(titleID)
+    if not self:IsNotifyEnabled() then
+        return
+    end
+
+    local record = ns.TitleData and ns.TitleData.GetRecord and ns.TitleData:GetRecord(titleID)
+    local text = record and record.text
+    if not text then
+        return
+    end
+
+    if ns.Print then
+        ns.Print((L and L["SPOTTING_NEW_SPOT_FMT"] and string.format(L["SPOTTING_NEW_SPOT_FMT"], text)) or ("Spotted: " .. text))
+    end
+end
+
+function Capture:TryCapture(unit, fromRetry)
+    if unit ~= "target" then return end
+    if not self:IsEnabled() then return end
+
+    if not UnitExists or not UnitExists(unit) then return end
+    if not UnitIsPlayer or not UnitIsPlayer(unit) then return end
+    if UnitIsUnit and UnitIsUnit(unit, "player") then return end
+
+    local guid = UnitGUID and UnitGUID(unit)
+    if not guid then return end
+
+    if self:ShouldDebounce(guid) then
+        return
+    end
+
+    local baseName = UnitName and UnitName(unit)
+    local fullName = UnitPVPName and UnitPVPName(unit)
+    if not fromRetry and baseName and (not fullName or fullName == baseName) then
+        self:QueueRetry(guid)
+        return
+    end
+
+    local titleID = nil
+    local titleText = nil
+    local titleType = nil
+    local quality = nil
+    local kind = nil
+    local cat = nil
+    local classTag = nil
+
+    if UnitClass then
+        local _, classFile = UnitClass(unit)
+        classTag = classFile
+    end
+
+    -- Prefer runtime-resolved IDs first so sightings always map to live TitleData.
+    if ns.TitleIndex and ns.TitleIndex.Resolve then
+        titleID = ns.TitleIndex:Resolve(unit)
+        if titleID and ns.TitleData and ns.TitleData.GetRecord then
+            local record = ns.TitleData:GetRecord(titleID)
+            if record then
+                titleText = record.text
+                titleType = record.type
+                quality = record.q
+                kind = record.kind
+                cat = record.cat
+            end
+        end
+    end
+
+    if not titleID and ns.SocialLayer and ns.SocialLayer.GetRecordForUnit then
+        local socialRecord = ns.SocialLayer:GetRecordForUnit(unit)
+
+        if socialRecord and socialRecord.titleText and ns.TitleData and ns.TitleData.records then
+            local targetText = tostring(socialRecord.titleText):lower()
+            local targetType = socialRecord.type
+            for _, record in ipairs(ns.TitleData.records) do
+                if record and record.titleID and record.text and tostring(record.text):lower() == targetText then
+                    if not targetType or record.type == targetType then
+                        titleID = record.titleID
+                        titleText = record.text
+                        titleType = record.type
+                        quality = record.q
+                        kind = record.kind
+                        cat = record.cat
+                        break
+                    end
+                end
+            end
+        end
+
+        if not titleID and socialRecord and socialRecord.titleID then
+            local fallbackID = tonumber(socialRecord.titleID)
+            if fallbackID then
+                titleID = fallbackID
+                titleText = socialRecord.titleText or titleText
+                titleType = socialRecord.type or titleType
+                quality = socialRecord.q or quality
+                kind = socialRecord.kind or kind
+                cat = socialRecord.cat or cat
+            end
+        end
+    end
+
+    if not titleID then
+        if not fromRetry and baseName and (not fullName or fullName == baseName) then
+            self:QueueRetry(guid)
+        end
+        return
+    end
+
+    self.retryGUID = nil
+    self:MarkProcessed(guid)
+
+    local isNew = ns.SpottingLog and ns.SpottingLog.Record and ns.SpottingLog:Record(titleID, unit, {
+        titleText = titleText,
+        titleType = titleType,
+        quality = quality,
+        kind = kind,
+        cat = cat,
+        classTag = classTag,
+    })
+    if isNew then
+        self:NotifyNewSpot(titleID)
+    end
+
+    if ns.LogbookUI and ns.LogbookUI.OnLogUpdated then
+        ns.LogbookUI:OnLogUpdated()
+    end
+end
+
+function Capture:PLAYER_TARGET_CHANGED()
+    self.retryGUID = nil
+    self:TryCapture("target", false)
+end
+
+function Capture:UNIT_NAME_UPDATE(unit)
+    if unit ~= "target" then
+        return
+    end
+
+    if not self.retryGUID then
+        return
+    end
+
+    if GetTime() > (self.retryDeadline or 0) then
+        self.retryGUID = nil
+        return
+    end
+
+    if UnitGUID("target") ~= self.retryGUID then
+        self.retryGUID = nil
+        return
+    end
+
+    self:TryCapture("target", true)
+end

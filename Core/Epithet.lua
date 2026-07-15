@@ -30,9 +30,14 @@ local DB_DEFAULTS = {
         obtainableOnly = false,   -- toggle: show earned % against obtainable pool only
         social = {
             enabled = true,
-            layout = "classic",
+            layout = "portrait",
             animatedPortrait = true,
+            fadeNameplates = false,
+            fadeDuration = 4.0,
             previewFunnyTitle = false,
+            spotNotify = true,
+            spotLogScope = "spotted",
+            spotLogView = "grid",
             hideInCombat = false,
             hideInGroup = false,
             targetAnchorX = 0,
@@ -69,22 +74,39 @@ function Epithet:OnInitialize()
     local s = self.db.profile.social or {}
     s.enabled = (s.enabled ~= false)
     s.targetAnchorPoint = nil -- legacy field removed; target is always anchored below target frame.
-    if type(s.layout) ~= "string" then s.layout = "classic" end
+    if type(s.layout) ~= "string" then s.layout = "portrait" end
     if ns.SocialLayer and ns.SocialLayer.IsValidLayoutKey and not ns.SocialLayer:IsValidLayoutKey(s.layout) then
         if ns.SocialLayer.GetDefaultLayoutKey then
             s.layout = ns.SocialLayer:GetDefaultLayoutKey()
         else
-            s.layout = "classic"
+            s.layout = "portrait"
         end
     end
     if type(s.targetAnchorX) ~= "number" then s.targetAnchorX = 0 end
     if type(s.targetAnchorY) ~= "number" then s.targetAnchorY = -120 end
     s.animatedPortrait = (s.animatedPortrait ~= false)
+    s.fadeNameplates = (s.fadeNameplates == true)
+    local fadeSeconds = tonumber(s.fadeDuration)
+    if not fadeSeconds then fadeSeconds = 5.0 end
+    if fadeSeconds < 0.5 then fadeSeconds = 0.5 end
+    if fadeSeconds > 20.0 then fadeSeconds = 20.0 end
+    s.fadeDuration = fadeSeconds
     s.previewFunnyTitle = (s.previewFunnyTitle == true)
+    s.spotNotify = (s.spotNotify ~= false)
+    if s.spotLogScope ~= "spotted" and s.spotLogScope ~= "remaining" then
+        s.spotLogScope = "spotted"
+    end
+    if s.spotLogView ~= "list" and s.spotLogView ~= "grid" then
+        s.spotLogView = "grid"
+    end
     s.hideInCombat = (s.hideInCombat == true)
     s.hideInGroup = (s.hideInGroup == true)
     s.targetUnlock = false
     self.db.profile.social = s
+
+    if ns.SpottingLog and ns.SpottingLog.Init then
+        ns.SpottingLog:Init()
+    end
 
     -- Slash commands
     SLASH_EPITHET1 = "/epithet"
@@ -125,6 +147,10 @@ function Epithet:OnEnable()
     if ns.SocialLayer and ns.SocialLayer:Init() then
         ns.SocialLayer:ApplySettings()
     end
+
+    if ns.SpottingCapture and ns.SpottingCapture.Init then
+        ns.SpottingCapture:Init()
+    end
 end
 
 -- ---------------------------------------------------------------------------
@@ -133,6 +159,9 @@ end
 function Epithet:PLAYER_ENTERING_WORLD()
     ns.TitleData.dirty = true
     ns.TitleData:Scan()
+    if ns.TitleIndex and ns.TitleIndex.Build then
+        ns.TitleIndex:Build()
+    end
     if ns.MainFrame and ns.MainFrame:IsShown() then
         ns.MainFrame:FullRefresh()
     end

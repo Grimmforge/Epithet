@@ -39,6 +39,9 @@ local RARITY_GEMS = {
     "Interface\\AddOns\\Epithet\\icons\\rarity\\epithet-rarity-5-legendary-32",
 }
 
+local HEADER_SPOTTED_COL_WIDTH = 62
+local HEADER_SPOTTED_COL_GAP = 10
+
 local frame = nil  -- reference to EpithetMainFrame
 
 -- ---------------------------------------------------------------------------
@@ -101,6 +104,18 @@ function MainFrame:Init()
     ns.Sidebar:Init(frame.Sidebar)
     ns.TitleList:Init(frame.ListContainer)
     ns.Detail:Init(frame.Detail)
+
+    if ns.LogbookUI and ns.LogbookUI.Init then
+        ns.LogbookUI:Init(frame)
+    end
+
+    -- If the main frame is closed (ESC, titlebar close, toggle, etc.), force the
+    -- spotting log panel closed so reopening starts on the normal layout.
+    frame:HookScript("OnHide", function()
+        if ns.LogbookUI and ns.LogbookUI.Hide then
+            ns.LogbookUI:Hide()
+        end
+    end)
 end
 
 -- ---------------------------------------------------------------------------
@@ -136,6 +151,10 @@ function MainFrame:Show()
 
     -- Select the equipped title or first row
     self:SelectDefault()
+
+    if ns.LogbookUI and ns.LogbookUI.RefreshButton then
+        ns.LogbookUI:RefreshButton()
+    end
 end
 
 function MainFrame:IsShown()
@@ -189,13 +208,22 @@ function MainFrame:InitHeader()
     local TOGGLE_OFF = "Interface\\AddOns\\Epithet\\icons\\ui\\epithet-ui-toggle-off-32"
     local TOGGLE_ON  = "Interface\\AddOns\\Epithet\\icons\\ui\\epithet-ui-toggle-on-32"
 
-    -- Shift earned label left to make room for toggle
-    header.EarnedLabel:ClearAllPoints()
-    header.EarnedLabel:SetPoint("TOPRIGHT", header, "TOPRIGHT", -30, -8)
+    local rightReserve = HEADER_SPOTTED_COL_WIDTH + HEADER_SPOTTED_COL_GAP
 
-    -- Ensure count row shares the same right edge as the toggle
+    -- Shift earned label left to make room for toggle + spotted button column.
+    header.EarnedLabel:ClearAllPoints()
+    header.EarnedLabel:SetPoint("TOPRIGHT", header, "TOPRIGHT", -(30 + rightReserve), -8)
+
+    -- Ensure count row shares the same right edge as the shifted earned region.
     header.EarnedCount:ClearAllPoints()
-    header.EarnedCount:SetPoint("TOPRIGHT", header, "TOPRIGHT", -8, -22)
+    header.EarnedCount:SetPoint("TOPRIGHT", header, "TOPRIGHT", -(8 + rightReserve), -22)
+
+    -- Progress bar keeps its left edge but gives the spotted-button column space.
+    if header.ProgressBar and header.PlayerRealm then
+        header.ProgressBar:ClearAllPoints()
+        header.ProgressBar:SetPoint("TOPLEFT", header.PlayerRealm, "BOTTOMLEFT", 0, -8)
+        header.ProgressBar:SetPoint("RIGHT", header, "RIGHT", -(8 + rightReserve), 0)
+    end
 
     local toggle = CreateFrame("Button", nil, header)
     toggle:SetSize(18, 18)
@@ -652,7 +680,7 @@ function MainFrame:ClearHover()
 end
 
 function MainFrame:GetDetailRecord()
-    return self.selectedRecord or self.hoveredRecord
+    return self.hoveredRecord or self.selectedRecord
 end
 
 -- ---------------------------------------------------------------------------

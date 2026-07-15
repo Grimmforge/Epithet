@@ -11,8 +11,10 @@ local UnitName = UnitName
 local UnitPVPName = UnitPVPName
 local UnitFullName = UnitFullName
 local UnitExists = UnitExists
+local UnitIsPlayer = UnitIsPlayer
 local CreateFrame = CreateFrame
 local GetCursorPosition = GetCursorPosition
+local GetTime = GetTime
 local InCombatLockdown = InCombatLockdown
 local IsInGroup = IsInGroup
 local IsInRaid = IsInRaid
@@ -22,6 +24,7 @@ local floor = math.floor
 local ceil = math.ceil
 
 local WHITE = "Interface\\Buttons\\WHITE8X8"
+local NAMEPLATE_FADE_OUT_DURATION = 0.75
 
 local SocialLayer = {}
 ns.SocialLayer = SocialLayer
@@ -69,11 +72,88 @@ local function Round(num)
     return ceil(num - 0.5)
 end
 
+local function ClampFadeDelay(seconds)
+    local value = tonumber(seconds)
+    if not value then return 4.0 end
+    if value < 0.5 then return 0.5 end
+    if value > 20.0 then return 20.0 end
+    return value
+end
+
 function SocialLayer:Init()
     if self.initialized then return true end
     self.initialized = true
     self.targetFrame = self.targetFrame or nil
+    self.fadeStartTime = nil
     return true
+end
+
+function SocialLayer:SetBlizzardTargetNameAlpha(alpha)
+    if TargetFrameName and TargetFrameName.SetAlpha then
+        TargetFrameName:SetAlpha(alpha)
+    end
+end
+
+function SocialLayer:ResetNameplateFade()
+    self.fadeStartTime = nil
+    if self.targetFrame and self.targetFrame.SetAlpha then
+        self.targetFrame:SetAlpha(1)
+    end
+    if self.targetFrame and self.targetFrame.portraitModel and self.targetFrame.portraitModel.SetAlpha then
+        self.targetFrame.portraitModel:SetAlpha(1)
+    end
+    self:SetBlizzardTargetNameAlpha(1)
+end
+
+function SocialLayer:StartNameplateFade(profile)
+    if not (profile and profile.fadeNameplates) then
+        self:ResetNameplateFade()
+        return
+    end
+
+    self.fadeStartTime = (GetTime and GetTime()) or 0
+    if self.targetFrame and self.targetFrame.SetAlpha then
+        self.targetFrame:SetAlpha(1)
+    end
+    if self.targetFrame and self.targetFrame.portraitModel and self.targetFrame.portraitModel.SetAlpha then
+        self.targetFrame.portraitModel:SetAlpha(1)
+    end
+    self:SetBlizzardTargetNameAlpha(1)
+end
+
+function SocialLayer:UpdateNameplateFade(profile)
+    if not (profile and profile.fadeNameplates and self.fadeStartTime and GetTime) then
+        return
+    end
+
+    local delay = ClampFadeDelay(profile.fadeDuration)
+    local elapsed = GetTime() - self.fadeStartTime
+
+    if elapsed <= delay then
+        if self.targetFrame and self.targetFrame.SetAlpha then
+            self.targetFrame:SetAlpha(1)
+        end
+        if self.targetFrame and self.targetFrame.portraitModel and self.targetFrame.portraitModel.SetAlpha and self.targetFrame.portraitModel.IsShown and self.targetFrame.portraitModel:IsShown() then
+            self.targetFrame.portraitModel:SetAlpha(1)
+        end
+        self:SetBlizzardTargetNameAlpha(1)
+        return
+    end
+
+    local progress = (elapsed - delay) / NAMEPLATE_FADE_OUT_DURATION
+    if progress < 0 then progress = 0 end
+    if progress > 1 then progress = 1 end
+
+    local alpha = 1 - progress
+    if alpha < 0 then alpha = 0 end
+
+    if self.targetFrame and self.targetFrame.SetAlpha then
+        self.targetFrame:SetAlpha(alpha)
+    end
+    if self.targetFrame and self.targetFrame.portraitModel and self.targetFrame.portraitModel.SetAlpha and self.targetFrame.portraitModel.IsShown and self.targetFrame.portraitModel:IsShown() then
+        self.targetFrame.portraitModel:SetAlpha(alpha)
+    end
+    self:SetBlizzardTargetNameAlpha(alpha)
 end
 
 function SocialLayer:GetDefaultLayoutKey()
@@ -108,6 +188,13 @@ end
 function SocialLayer:GetRecordForUnit(unit)
     if not unit or not UnitExists or not UnitExists(unit) then return nil end
     local displayName = UnitPVPName and UnitPVPName(unit)
+    local targetFrameText = nil
+    if unit == "target" and TargetFrameName and TargetFrameName.GetText then
+        targetFrameText = TargetFrameName:GetText()
+        if (not displayName or displayName == "") and targetFrameText and targetFrameText ~= "" then
+            displayName = targetFrameText
+        end
+    end
     if not displayName or displayName == "" then return nil end
 
     local unitName = UnitName and UnitName(unit)
@@ -115,26 +202,50 @@ function SocialLayer:GetRecordForUnit(unit)
     local baseName = StripRealm(fullName or unitName or displayName)
     if not baseName or baseName == "" then return nil end
 
+    local escapedBase = baseName:gsub("(%W)", "%%%1")
     local titleText = nil
     local titleType = nil
-    if displayName:find(baseName, 1, true) == 1 then
-        local suffix = displayName:sub(#baseName + 1)
-        if suffix:match("^,%s+") then
-            titleType = "suffix"
-            titleText = suffix:gsub("^,%s+", "")
-        elseif suffix:match("^%s+") then
-            titleType = "prefix"
-            titleText = suffix:gsub("^%s+", "")
+
+    local function ParseDisplay(candidate)
+        if not candidate or candidate == "" then return nil, nil end
+
+        if candidate:find("^" .. escapedBase) then
+            local suffix = candidate:sub(#baseName + 1)
+            -- Handle cross-realm display names that include "-Realm" right
+            -- after the character name before any title text.
+            suffix = suffix:gsub("^%-[^,%s]+", "")
+            if suffix:match("^,%s+") then
+                return "suffix", suffix:gsub("^,%s+", "")
+            end
+            if suffix:match("^%s+") then
+                return "suffix", suffix:gsub("^%s+", "")
+            end
         end
-    elseif displayName:find(baseName, 1, true) then
-        local prefix = displayName:match("^(.-)" .. baseName)
-        if prefix and prefix ~= "" then
-            titleType = "prefix"
-            titleText = prefix:gsub("%s+$", "")
+
+        local prefix = candidate:match("^(.-)%s+" .. escapedBase .. "%-?[^%s]*$")
+        if prefix and prefix:match("%S") then
+            return "prefix", prefix:gsub("%s+$", "")
+        end
+
+        return nil, nil
+    end
+
+    local candidates = { displayName }
+    if targetFrameText and targetFrameText ~= "" and targetFrameText ~= displayName then
+        candidates[#candidates + 1] = targetFrameText
+    end
+
+    for i = 1, #candidates do
+        titleType, titleText = ParseDisplay(candidates[i])
+        if titleText and titleText ~= "" then
+            break
         end
     end
 
-    if not titleText or titleText == "" then return nil end
+    if not titleText or titleText == "" then
+        -- No parseable title found: suppress the social frame entirely.
+        return nil
+    end
 
     local key = NormalizeName(titleText)
     local static = ns.EpithetData and ns.EpithetData.titles and ns.EpithetData.titles[key]
@@ -167,6 +278,7 @@ end
 function SocialLayer:ApplySettings()
     local profile = GetProfile()
     if not profile or not profile.enabled then
+        self:ResetNameplateFade()
         self:HideTargetFrame()
         return
     end
@@ -214,7 +326,9 @@ function SocialLayer:EnsureTargetFrame()
 
     frame = CreateFrame("Frame", "EpithetSocialTargetFrame", UIParent, "BackdropTemplate")
     frame.__epithetTargetFrame = true
-    frame:SetSize(defaultMetrics.minWidth, defaultMetrics.frameHeight)
+    local frameWidth = tonumber(defaultMetrics.minWidth) or tonumber(defaultMetrics.frameWidth) or 248
+    local frameHeight = tonumber(defaultMetrics.frameHeight) or tonumber(defaultMetrics.minHeight) or 58
+    frame:SetSize(frameWidth, frameHeight)
     frame:SetFrameStrata("HIGH")
     frame:SetBackdrop({
         bgFile = WHITE,
@@ -404,8 +518,10 @@ function SocialLayer:EnsureTargetFrame()
         end
     end)
     frame:SetScript("OnUpdate", function(self_)
-        if not self_.isDragging then return end
-        SocialLayer:UpdateTargetDrag(self_)
+        if self_.isDragging then
+            SocialLayer:UpdateTargetDrag(self_)
+        end
+        SocialLayer:UpdateNameplateFade(GetProfile())
     end)
     frame.isUnlocked = false
     frame.isDragging = false
@@ -553,24 +669,29 @@ function SocialLayer:RefreshTargetFrame()
         local titleText, quality, rarityText = self:FormatTargetPill(record)
         if not titleText then
             frame:Hide()
+            self:ResetNameplateFade()
             return
         end
         self:AnchorTargetFrame(frame, profile)
         self:SetTargetPillContent(frame, titleText, quality, rarityText)
         frame:Show()
+        self:StartNameplateFade(profile)
     else
         local settingsOpen = ns.Settings and ns.Settings.panel and ns.Settings.panel.IsShown and ns.Settings.panel:IsShown()
         if profile.targetUnlock and settingsOpen then
             self:AnchorTargetFrame(frame, profile)
             self:SetTargetPillPlaceholder(frame)
             frame:Show()
+            self:ResetNameplateFade()
         else
             frame:Hide()
+            self:ResetNameplateFade()
         end
     end
 end
 
 function SocialLayer:HideTargetFrame()
+    self:ResetNameplateFade()
     if self.targetFrame and self.targetFrame.Hide then self.targetFrame:Hide() end
     if self.targetFrame and self.targetFrame.crownFrame then self.targetFrame.crownFrame:Hide() end
 end
