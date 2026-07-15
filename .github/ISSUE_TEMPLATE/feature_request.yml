@@ -1,0 +1,90 @@
+name: Feature request
+description: Propose and track a new feature for Epithet
+title: "feat: <short feature title>"
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for proposing a new feature for Epithet! Use this template to define scope and track progress.
+
+  - type: input
+    id: summary
+    attributes:
+      label: Feature summary
+      description: A concise description of the feature.
+      placeholder: e.g., Add account-wide title completion stats
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement / goal
+      description: What problem are we solving, and for whom?
+      placeholder: Describe the user pain point or development goal.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe your proposed implementation at a high level.
+      placeholder: Outline approach, UI/UX expectations, and behavior.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What other approaches were considered?
+      placeholder: Include trade-offs if applicable.
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Define what "done" looks like.
+      placeholder: |
+        - [ ] Criterion 1
+        - [ ] Criterion 2
+        - [ ] Criterion 3
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: Clarify what is in scope and out of scope.
+      placeholder: |
+        In scope:
+        - ...
+
+        Out of scope:
+        - ...
+    validations:
+      required: false
+
+  - type: textarea
+    id: deps
+    attributes:
+      label: Dependencies / blockers
+      description: Any technical dependencies, sequencing, or blockers?
+      placeholder: e.g., Requires refactor of title data cache
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Links, screenshots, logs, or related issues.
+      placeholder: Add references that help implementation.
+    validations:
+      required: false
