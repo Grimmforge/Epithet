@@ -1,4 +1,4 @@
-## Interface: 120001
+## Interface: 120007
 ## Title: Epithet
 ## Notes: Browse all player titles, see how each was obtained, rarity tiers, and track your collection.
 ## Author: Joe Tomkinson (Grimmvöcare - Bronzebeard)
@@ -23,8 +23,13 @@ data\TitlesDB.lua
 
 # Core
 Core\Theme.lua
+Core\Layouts.lua
+Core\layouts\classic.lua
+Core\layouts\portrait.lua
 Core\TitleData.lua
 Core\Filters.lua
+Core\Settings.lua
+Core\SocialLayer.lua
 Core\Epithet.lua
 
 # UI

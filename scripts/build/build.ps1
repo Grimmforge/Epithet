@@ -1,9 +1,9 @@
 # build.ps1 - Creates dist/ with release and PTR zips ready for CurseForge
 # Usage:
-#   ./build.ps1                 # build only
-#   ./build.ps1 -Bump patch    # 0.1.0 -> 0.1.1, then build
-#   ./build.ps1 -Bump minor    # 0.1.0 -> 0.2.0, then build
-#   ./build.ps1 -Bump major    # 0.1.0 -> 1.0.0, then build
+#   ./scripts/build/build.ps1                 # build only
+#   ./scripts/build/build.ps1 -Bump patch    # 0.1.0 -> 0.1.1, then build
+#   ./scripts/build/build.ps1 -Bump minor    # 0.1.0 -> 0.2.0, then build
+#   ./scripts/build/build.ps1 -Bump major    # 0.1.0 -> 1.0.0, then build
 
 param(
     [ValidateSet("major", "minor", "patch")]
@@ -12,12 +12,12 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$root = Split-Path $PSScriptRoot -Parent
+$root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $tocFile = Join-Path $root "Epithet.toc"
 
 # Interface versions
-$INTERFACE_LIVE = "120001"
-$INTERFACE_PTR  = "120005"
+$INTERFACE_LIVE = "120007"
+$INTERFACE_PTR  = "120100"
 
 # --- Version bump ---
 if ($Bump) {

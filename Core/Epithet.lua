@@ -28,6 +28,17 @@ local DB_DEFAULTS = {
         favourites = {},          -- set keyed by lowercase title text: { ["the explorer"] = true }
         sort = "collectedFirst",  -- "collectedFirst" | "expansion" | "alphabetical" | "quality" | "category"
         obtainableOnly = false,   -- toggle: show earned % against obtainable pool only
+        social = {
+            enabled = true,
+            layout = "classic",
+            animatedPortrait = true,
+            previewFunnyTitle = false,
+            hideInCombat = false,
+            hideInGroup = false,
+            targetAnchorX = 0,
+            targetAnchorY = -120,
+            targetUnlock = false,
+        },
         framePoint = nil,         -- {point, relPoint, x, y}
         scale = 1.0,
         minimap = { hide = false },
@@ -55,6 +66,25 @@ function Epithet:OnInitialize()
     f.cat = f.cat or {}
     f.kind = f.kind or {}
     f.faction = f.faction or {}
+    local s = self.db.profile.social or {}
+    s.enabled = (s.enabled ~= false)
+    s.targetAnchorPoint = nil -- legacy field removed; target is always anchored below target frame.
+    if type(s.layout) ~= "string" then s.layout = "classic" end
+    if ns.SocialLayer and ns.SocialLayer.IsValidLayoutKey and not ns.SocialLayer:IsValidLayoutKey(s.layout) then
+        if ns.SocialLayer.GetDefaultLayoutKey then
+            s.layout = ns.SocialLayer:GetDefaultLayoutKey()
+        else
+            s.layout = "classic"
+        end
+    end
+    if type(s.targetAnchorX) ~= "number" then s.targetAnchorX = 0 end
+    if type(s.targetAnchorY) ~= "number" then s.targetAnchorY = -120 end
+    s.animatedPortrait = (s.animatedPortrait ~= false)
+    s.previewFunnyTitle = (s.previewFunnyTitle == true)
+    s.hideInCombat = (s.hideInCombat == true)
+    s.hideInGroup = (s.hideInGroup == true)
+    s.targetUnlock = false
+    self.db.profile.social = s
 
     -- Slash commands
     SLASH_EPITHET1 = "/epithet"
@@ -65,6 +95,14 @@ function Epithet:OnInitialize()
 
     -- Minimap button
     self:SetupMinimapButton()
+
+    if ns.Settings and ns.Settings.Init then
+        ns.Settings:Init()
+    end
+
+    if ns.SocialLayer and ns.SocialLayer:Init() then
+        ns.SocialLayer:ApplySettings()
+    end
 end
 
 function Epithet:OnEnable()
@@ -78,6 +116,15 @@ function Epithet:OnEnable()
     self.eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
     self.eventFrame:RegisterEvent("ACHIEVEMENT_EARNED")
     self.eventFrame:RegisterEvent("UNIT_NAME_UPDATE")
+    self.eventFrame:RegisterEvent("UNIT_PORTRAIT_UPDATE")
+    self.eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
+    self.eventFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
+    self.eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+    self.eventFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
+
+    if ns.SocialLayer and ns.SocialLayer:Init() then
+        ns.SocialLayer:ApplySettings()
+    end
 end
 
 -- ---------------------------------------------------------------------------
@@ -106,6 +153,40 @@ function Epithet:UNIT_NAME_UPDATE(unit)
         if ns.MainFrame and ns.MainFrame:IsShown() then
             ns.MainFrame:FullRefresh()
         end
+    end
+    if ns.SocialLayer then
+        ns.SocialLayer:HandleUnitUpdate(unit)
+    end
+end
+
+function Epithet:UNIT_PORTRAIT_UPDATE(unit)
+    if not ns.SocialLayer then return end
+    if unit == "target" or unit == "player" then
+        ns.SocialLayer:RefreshTargetFrame()
+    end
+end
+
+function Epithet:PLAYER_TARGET_CHANGED()
+    if ns.SocialLayer then
+        ns.SocialLayer:HandleTargetChanged()
+    end
+end
+
+function Epithet:PLAYER_REGEN_DISABLED()
+    if ns.SocialLayer then
+        ns.SocialLayer:RefreshTargetFrame()
+    end
+end
+
+function Epithet:PLAYER_REGEN_ENABLED()
+    if ns.SocialLayer then
+        ns.SocialLayer:RefreshTargetFrame()
+    end
+end
+
+function Epithet:GROUP_ROSTER_UPDATE()
+    if ns.SocialLayer then
+        ns.SocialLayer:RefreshTargetFrame()
     end
 end
 

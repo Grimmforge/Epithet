@@ -1,14 +1,14 @@
 # link-release.ps1 - Link the dist/release build into the WoW Retail AddOns folder
 # Use this to test the packaged release distribution before uploading.
-# Run build.ps1 first to generate dist/release/Epithet.
+# Run scripts/build/build.ps1 first to generate dist/release/Epithet.
 
 $addonsPath = "A:\Blizzard\World of Warcraft\_retail_\Interface\Addons"
 $linkPath = Join-Path $addonsPath "Epithet"
-$root = Split-Path $PSScriptRoot -Parent
+$root = Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent
 $targetPath = Join-Path $root "dist\release\Epithet"
 
 if (-not (Test-Path $targetPath)) {
-    Write-Host "ERROR: dist/release/Epithet does not exist. Run build.ps1 first." -ForegroundColor Red
+    Write-Host "ERROR: dist/release/Epithet does not exist. Run scripts/build/build.ps1 first." -ForegroundColor Red
     exit 1
 }
 

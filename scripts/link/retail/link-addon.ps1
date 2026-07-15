@@ -2,7 +2,7 @@
 
 $addonsPath = "A:\Blizzard\World of Warcraft\_retail_\Interface\Addons"
 $linkPath = Join-Path $addonsPath "Epithet"
-$repoPath = Split-Path $PSScriptRoot -Parent
+$repoPath = Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent
 
 if (Test-Path $linkPath) {
     $item = Get-Item $linkPath -Force

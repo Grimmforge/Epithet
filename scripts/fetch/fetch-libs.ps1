@@ -4,7 +4,7 @@
 
 $ErrorActionPreference = "Stop"
 
-$root = Split-Path $PSScriptRoot -Parent
+$root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $libsDir = Join-Path $root "libs"
 $tempZip = Join-Path $env:TEMP "ace3-latest.zip"
 $tempDir = Join-Path $env:TEMP "ace3-extract"
@@ -99,4 +99,4 @@ foreach ($extra in $extraLibs) {
 
 Write-Host ""
 Write-Host "All libraries installed to libs/" -ForegroundColor Green
-Write-Host "You can now use link-addon.ps1 without lib loading warnings." -ForegroundColor Cyan
+Write-Host "You can now use scripts/link/retail/link-addon.ps1 without lib loading warnings." -ForegroundColor Cyan

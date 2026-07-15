@@ -156,6 +156,7 @@ function TitleList:Refresh()
     local records = ns.TitleData.records or {}
     local filtered = ns.Filters:Apply(records, db.filters)
     local display = ns.Filters:BuildDisplayList(filtered, db.sort)
+    self.displayList = display
 
     self:UpdateHeaderText(#filtered)
 
@@ -398,9 +399,71 @@ end
 -- Selection
 -- ---------------------------------------------------------------------------
 function TitleList:SetSelection(record)
+    if not record then return end
     self.selectedRecord = record
     ns.MainFrame:SetSelection(record)
     self:RefreshSelectionVisuals()
+    self:EnsureSelectionVisible(record)
+
+    -- Some ScrollBox layouts settle on the next frame; run a follow-up pass.
+    if C_Timer and C_Timer.After then
+        local selected = record
+        C_Timer.After(0, function()
+            if TitleList.selectedRecord == selected then
+                TitleList:RefreshSelectionVisuals()
+                TitleList:EnsureSelectionVisible(selected)
+            end
+        end)
+    end
+end
+
+function TitleList:EnsureSelectionVisible(record)
+    if not record or not self.scrollBox or not self.scrollBar or not self.displayList then return end
+    if not self.scrollBar.GetMinMaxValues or not self.scrollBar.SetValue then return end
+
+    local topOffset = 0
+    local elemHeight = ROW_HEIGHT
+    local found = false
+
+    for _, elementData in ipairs(self.displayList) do
+        local h = elementData.isHeader and HEADER_HEIGHT or ROW_HEIGHT
+        if elementData == record then
+            elemHeight = h
+            found = true
+            break
+        end
+        topOffset = topOffset + h
+    end
+
+    if not found then return end
+
+    local minValue, maxValue = self.scrollBar:GetMinMaxValues()
+    if not minValue or not maxValue or maxValue <= minValue then return end
+
+    local current = self.scrollBar.GetValue and self.scrollBar:GetValue() or minValue
+    local viewHeight = self.scrollBox.GetHeight and self.scrollBox:GetHeight() or 0
+    if viewHeight <= 0 then return end
+
+    local viewTop = current
+    local viewBottom = current + viewHeight
+    local elemBottom = topOffset + elemHeight
+
+    local targetValue = current
+    if topOffset < viewTop then
+        targetValue = topOffset
+    elseif elemBottom > viewBottom then
+        targetValue = elemBottom - viewHeight
+    else
+        return
+    end
+
+    if targetValue < minValue then
+        targetValue = minValue
+    elseif targetValue > maxValue then
+        targetValue = maxValue
+    end
+
+    self.scrollBar:SetValue(targetValue)
 end
 
 function TitleList:RefreshSelectionVisuals()

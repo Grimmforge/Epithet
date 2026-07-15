@@ -1,14 +1,14 @@
 # link-ptr.ps1 - Link the dist/ptr build into the WoW PTR AddOns folder
 # Use this to test the packaged PTR distribution before uploading.
-# Run build.ps1 first to generate dist/ptr/Epithet.
+# Run scripts/build/build.ps1 first to generate dist/ptr/Epithet.
 
 $addonsPath = "A:\Blizzard\World of Warcraft\_ptr_\Interface\Addons"
 $linkPath = Join-Path $addonsPath "Epithet"
-$root = Split-Path $PSScriptRoot -Parent
+$root = Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent
 $targetPath = Join-Path $root "dist\ptr\Epithet"
 
 if (-not (Test-Path $targetPath)) {
-    Write-Host "ERROR: dist/ptr/Epithet does not exist. Run build.ps1 first." -ForegroundColor Red
+    Write-Host "ERROR: dist/ptr/Epithet does not exist. Run scripts/build/build.ps1 first." -ForegroundColor Red
     exit 1
 }
 

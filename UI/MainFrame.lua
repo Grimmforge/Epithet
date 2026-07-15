@@ -14,6 +14,19 @@ local CreateFrame = CreateFrame
 local format  = string.format
 local floor   = math.floor
 local tinsert = tinsert
+local strlower = strlower
+
+local function NormalizeTitleText(value)
+    if not value then return "" end
+    return strlower((tostring(value):gsub("^%s+", ""):gsub("%s+$", "")))
+end
+
+local function CanonicalTitleText(value)
+    local text = NormalizeTitleText(value)
+    text = text:gsub("[^%w%s]", "")
+    text = text:gsub("%s+", " ")
+    return text
+end
 
 local MainFrame = {}
 ns.MainFrame = MainFrame
@@ -106,6 +119,9 @@ end
 function MainFrame:Show()
     self:Init()
     if not frame then return end
+
+    -- Clear stale hover state from previous sessions so detail reflects selection.
+    self.hoveredRecord = nil
 
     -- Scan fresh data
     ns.TitleData:Scan()
@@ -528,6 +544,91 @@ function MainFrame:SelectDefault()
     ns.TitleList:SelectFirst()
 end
 
+function MainFrame:OpenAndSelectTitle(titleText, titleType, titleID)
+    self:Show()
+
+    -- Explicit external selection should always override hover-preview mode.
+    self.hoveredRecord = nil
+
+    if titleID and ns.TitleData and ns.TitleData.GetRecord then
+        local byID = ns.TitleData:GetRecord(titleID)
+        if byID then
+            self:EnsureRecordVisibleInList(byID)
+            ns.TitleList:SetSelection(byID)
+            return
+        end
+    end
+
+    if not titleText or titleText == "" then
+        return
+    end
+
+    local target = NormalizeTitleText(titleText)
+    local targetCanonical = CanonicalTitleText(titleText)
+    local bestMatch = nil
+    local bestScore = -1
+
+    for _, record in ipairs(ns.TitleData.records or {}) do
+        local textNorm = NormalizeTitleText(record.text)
+        local textCanonical = CanonicalTitleText(record.text)
+        local score = 0
+
+        if textNorm == target then
+            score = score + 4
+        elseif targetCanonical ~= "" and textCanonical == targetCanonical then
+            score = score + 3
+        elseif targetCanonical ~= "" and (
+            textCanonical:find(targetCanonical, 1, true) or
+            targetCanonical:find(textCanonical, 1, true)
+        ) then
+            score = score + 1
+        end
+
+        if score > 0 and titleType and record.type == titleType then
+            score = score + 5
+        end
+
+        if score > bestScore then
+            bestScore = score
+            bestMatch = record
+        end
+    end
+
+    if bestMatch then
+        self:EnsureRecordVisibleInList(bestMatch)
+        ns.TitleList:SetSelection(bestMatch)
+    end
+end
+
+function MainFrame:EnsureRecordVisibleInList(record)
+    if not record then return end
+    if not ns.Epithet or not ns.Epithet.db or not ns.Epithet.db.profile then return end
+
+    local filters = ns.Epithet.db.profile.filters
+    if not filters then return end
+
+    -- External title-open should always drive the sidebar search state.
+    if ns.Filters and ns.Filters.Reset then
+        ns.Filters:Reset(filters)
+    end
+
+    local searchText = record.text or ""
+    filters.search = searchText
+
+    if ns.Sidebar then
+        if ns.Sidebar.searchBox then
+            if ns.Sidebar.searchBox:GetText() ~= searchText then
+                ns.Sidebar.searchBox:SetText(searchText)
+            end
+        end
+        if ns.Sidebar.Refresh then
+            ns.Sidebar:Refresh()
+        end
+    end
+
+    self:RefreshList()
+end
+
 -- ---------------------------------------------------------------------------
 -- Selection / hover state (shared between list and detail)
 -- ---------------------------------------------------------------------------
@@ -536,6 +637,7 @@ MainFrame.hoveredRecord = nil
 
 function MainFrame:SetSelection(record)
     self.selectedRecord = record
+    self.hoveredRecord = nil
     ns.Detail:Refresh()
 end
 
@@ -550,7 +652,7 @@ function MainFrame:ClearHover()
 end
 
 function MainFrame:GetDetailRecord()
-    return self.hoveredRecord or self.selectedRecord
+    return self.selectedRecord or self.hoveredRecord
 end
 
 -- ---------------------------------------------------------------------------
