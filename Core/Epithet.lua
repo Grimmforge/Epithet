@@ -7,6 +7,8 @@ local ADDON_NAME, ns = ...
 local Epithet = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME)
 ns.Epithet = Epithet
 
+local C_Timer = C_Timer
+
 -- ---------------------------------------------------------------------------
 -- Saved variable defaults
 -- ---------------------------------------------------------------------------
@@ -36,6 +38,7 @@ local DB_DEFAULTS = {
             fadeDuration = 4.0,
             previewFunnyTitle = false,
             spotNotify = true,
+            achievementNotify = true,
             spotLogScope = "spotted",
             spotLogView = "grid",
             hideInCombat = false,
@@ -93,6 +96,7 @@ function Epithet:OnInitialize()
     s.fadeDuration = fadeSeconds
     s.previewFunnyTitle = (s.previewFunnyTitle == true)
     s.spotNotify = (s.spotNotify ~= false)
+    s.achievementNotify = (s.achievementNotify ~= false)
     if s.spotLogScope ~= "spotted" and s.spotLogScope ~= "remaining" then
         s.spotLogScope = "spotted"
     end
@@ -104,10 +108,6 @@ function Epithet:OnInitialize()
     s.targetUnlock = false
     self.db.profile.social = s
 
-    if ns.SpottingLog and ns.SpottingLog.Init then
-        ns.SpottingLog:Init()
-    end
-
     -- Slash commands
     SLASH_EPITHET1 = "/epithet"
     SLASH_EPITHET2 = "/titles"
@@ -117,6 +117,16 @@ function Epithet:OnInitialize()
 
     -- Minimap button
     self:SetupMinimapButton()
+
+    if ns.SpottingLog and ns.SpottingLog.Init then
+        ns.SpottingLog:Init()
+    end
+    if ns.SpottingAchievements and ns.SpottingAchievements.Init then
+        ns.SpottingAchievements:Init()
+    end
+    if ns.WhatsNew and ns.WhatsNew.Init then
+        ns.WhatsNew:Init()
+    end
 
     if ns.Settings and ns.Settings.Init then
         ns.Settings:Init()
@@ -137,8 +147,10 @@ function Epithet:OnEnable()
     end)
     self.eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
     self.eventFrame:RegisterEvent("ACHIEVEMENT_EARNED")
-    self.eventFrame:RegisterEvent("UNIT_NAME_UPDATE")
-    self.eventFrame:RegisterEvent("UNIT_PORTRAIT_UPDATE")
+    -- Only "player"/"target" are ever handled below; let the client filter
+    -- delivery instead of receiving every unit's update and checking in Lua.
+    self.eventFrame:RegisterUnitEvent("UNIT_NAME_UPDATE", "player", "target")
+    self.eventFrame:RegisterUnitEvent("UNIT_PORTRAIT_UPDATE", "player", "target")
     self.eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
     self.eventFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
     self.eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
@@ -165,12 +177,21 @@ function Epithet:PLAYER_ENTERING_WORLD()
     if ns.MainFrame and ns.MainFrame:IsShown() then
         ns.MainFrame:FullRefresh()
     end
+
+    if ns.WhatsNew and ns.WhatsNew.ShowForCurrentVersionIfNeeded then
+        ns.WhatsNew:ShowForCurrentVersionIfNeeded()
+    end
 end
 
 function Epithet:ACHIEVEMENT_EARNED()
     -- A new title may have unlocked
     ns.TitleData.dirty = true
     ns.TitleData:Scan()
+    if ns.TitleIndex and ns.TitleIndex.Reset then
+        -- Invalidate the name-fragment index so a newly earned title becomes
+        -- resolvable by SpottingCapture/SocialLayer without a relog.
+        ns.TitleIndex:Reset()
+    end
     if ns.MainFrame and ns.MainFrame:IsShown() then
         ns.MainFrame:FullRefresh()
     end
@@ -213,10 +234,20 @@ function Epithet:PLAYER_REGEN_ENABLED()
     end
 end
 
+-- GROUP_ROSTER_UPDATE can fire in rapid bursts in large raids; debounce so a
+-- burst of N events results in one refresh instead of N.
+local GROUP_ROSTER_DEBOUNCE = 0.2
+
 function Epithet:GROUP_ROSTER_UPDATE()
-    if ns.SocialLayer then
-        ns.SocialLayer:RefreshTargetFrame()
-    end
+    if not ns.SocialLayer then return end
+    if self.groupRosterRefreshPending then return end
+    self.groupRosterRefreshPending = true
+    C_Timer.After(GROUP_ROSTER_DEBOUNCE, function()
+        self.groupRosterRefreshPending = false
+        if ns.SocialLayer then
+            ns.SocialLayer:RefreshTargetFrame()
+        end
+    end)
 end
 
 -- ---------------------------------------------------------------------------
@@ -258,6 +289,11 @@ function Epithet:HandleSlash(input)
             end
         end
         Print("Showed " .. shown .. " raw titles. (Run /epithet scan first if empty.)")
+        return
+    elseif cmd == "whatsnew" then
+        if ns.WhatsNew and ns.WhatsNew.Show then
+            ns.WhatsNew:Show(ns.WhatsNew:GetCurrentVersion())
+        end
         return
     end
 

@@ -16,13 +16,7 @@ local strlower  = strlower
 local Detail = {}
 ns.Detail = Detail
 
-local RARITY_GEMS = {
-    "Interface\\AddOns\\Epithet\\icons\\rarity\\epithet-rarity-1-common-32",
-    "Interface\\AddOns\\Epithet\\icons\\rarity\\epithet-rarity-2-uncommon-32",
-    "Interface\\AddOns\\Epithet\\icons\\rarity\\epithet-rarity-3-rare-32",
-    "Interface\\AddOns\\Epithet\\icons\\rarity\\epithet-rarity-4-epic-32",
-    "Interface\\AddOns\\Epithet\\icons\\rarity\\epithet-rarity-5-legendary-32",
-}
+local RARITY_GEMS = T and T.RarityGems32
 
 local DOT  = "\194\183"        -- middle dot ·
 local STAR = "\226\152\133"    -- star ★
@@ -36,6 +30,10 @@ local INSET = 16
 
 -- Scratch tables (reused per Refresh to avoid allocation)
 local scratchParts = {}
+
+-- Sentinel so the very first Refresh() always runs even when nothing is
+-- selected yet (record == nil); a fresh table never equals anything else.
+local NEVER_REFRESHED = {}
 
 -- Unobtainability icons (16px for detail panel banner)
 local UNOBTAIN_SEALED_16    = "Interface\\AddOns\\Epithet\\icons\\ui\\epithet-ui-unobtainable-sealed-16"
@@ -494,22 +492,36 @@ end
 -- ---------------------------------------------------------------------------
 -- Refresh
 -- ---------------------------------------------------------------------------
-function Detail:Refresh()
+Detail.lastRecord = NEVER_REFRESHED
+Detail.lastIsHover = nil
+
+function Detail:Refresh(force)
     if not self.panel then return end
+
+    local record = ns.MainFrame:GetDetailRecord()
+    local isHover = (ns.MainFrame.hoveredRecord ~= nil)
+
+    -- Hovering/unhovering the row that's already selected (or re-hovering
+    -- the same row) resolves to the same record and hover state, so the
+    -- ~40 widget writes below would be pure churn; skip unless forced (e.g.
+    -- OnActionClick, where the record is mutated in place after an action).
+    if not force and record == self.lastRecord and isHover == self.lastIsHover then
+        return
+    end
+    self.lastRecord = record
+    self.lastIsHover = isHover
 
     -- Dismiss rarity info popup on any selection/hover change
     if self.rarityModal and self.rarityModal:IsShown() then
         self.rarityModal:Hide()
     end
 
-    local record = ns.MainFrame:GetDetailRecord()
     if not record then
         self:ShowEmpty()
         return
     end
     self:HideEmpty()
 
-    local isHover = (ns.MainFrame.hoveredRecord ~= nil)
     self.previewBanner:SetText(isHover and L["PREVIEW_HOVERING"] or "")
 
     -- Title in context (colour-wrapped per design spec)
@@ -779,7 +791,7 @@ function Detail:OnActionClick()
         ns.TitleData:RefreshActiveState()
         ns.MainFrame:FullRefresh()
         ns.TitleList:RefreshSelectionVisuals()
-        self:Refresh()
+        self:Refresh(true) -- record.isActive changed in place; bypass the no-op guard
     end
 end
 

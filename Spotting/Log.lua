@@ -8,10 +8,15 @@ ns.SpottingLog = Log
 
 local EXPORT_MAGIC = "EPITHET_SPOTLOG_V1"
 local EXPORT_MAGIC_B64 = "EPITHET_SPOTLOG_B64_V1"
+local EXPORT_BIND_PREFIX = "BIND"
 local B64_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+local BIND_SIG_PEPPER = "EpithetSpotBindV2"
 
 local GetUnitName = GetUnitName
 local GetZoneText = GetZoneText
+local GetNormalizedRealmName = GetNormalizedRealmName
+local UnitFullName = UnitFullName
+local UnitGUID = UnitGUID
 local UnitName = UnitName
 local time = time
 
@@ -36,6 +41,64 @@ local function GetStore()
     return db.spotted
 end
 
+local function CurrentCharacterKey()
+    local name, realm
+    if UnitFullName then
+        name, realm = UnitFullName("player")
+    end
+    if not name or name == "" then
+        name = UnitName and UnitName("player")
+    end
+    if not name or name == "" then
+        return nil
+    end
+
+    if not realm or realm == "" then
+        realm = GetNormalizedRealmName and GetNormalizedRealmName()
+    end
+
+    if realm and realm ~= "" then
+        return name .. "-" .. realm
+    end
+
+    return name
+end
+
+local function CurrentCharacterGUID()
+    local guid = UnitGUID and UnitGUID("player")
+    if type(guid) ~= "string" or guid == "" then
+        return nil
+    end
+    return guid
+end
+
+local function BuildBindingSignature(ownerKey, ownerGUID, dataLines)
+    if type(ownerKey) ~= "string" or ownerKey == "" or type(ownerGUID) ~= "string" or ownerGUID == "" then
+        return nil
+    end
+
+    local normalized = {}
+    for _, line in ipairs(dataLines or {}) do
+        if type(line) == "string" and line ~= "" then
+            normalized[#normalized + 1] = line
+        end
+    end
+    table.sort(normalized)
+
+    local payload = ownerKey .. "\n" .. ownerGUID .. "\n" .. table.concat(normalized, "\n") .. "\n" .. BIND_SIG_PEPPER
+    local mod = 4294967296
+    local h1 = 2166136261
+    local h2 = 1315423911
+
+    for i = 1, #payload do
+        local b = payload:byte(i)
+        h1 = (h1 * 16777619 + b + i) % mod
+        h2 = (h2 * 65599 + b + (i * 3)) % mod
+    end
+
+    return string.format("%08x%08x", h1, h2)
+end
+
 local function NormalizeEntry(entry, now)
     if type(entry) ~= "table" then
         return nil
@@ -47,6 +110,11 @@ local function NormalizeEntry(entry, now)
     if count < 1 then count = 1 end
     count = math.floor(count)
 
+    local sex = tonumber(entry.sex)
+    if sex ~= 2 and sex ~= 3 then
+        sex = nil
+    end
+
     return {
         firstSeen = firstSeen,
         lastSeen = lastSeen,
@@ -55,6 +123,8 @@ local function NormalizeEntry(entry, now)
         firstZone = entry.firstZone,
         lastName = entry.lastName,
         classTag = entry.classTag,
+        raceTag = entry.raceTag,
+        sex = sex,
         titleText = entry.titleText,
         titleType = entry.titleType,
         quality = entry.quality,
@@ -261,6 +331,11 @@ function Log:Record(titleID, unit, info)
     local kind = info and info.kind or nil
     local cat = info and info.cat or nil
     local classTag = info and info.classTag or nil
+    local raceTag = info and info.raceTag or nil
+    local sex = info and tonumber(info.sex) or nil
+    if sex ~= 2 and sex ~= 3 then
+        sex = nil
+    end
 
     local entry = store[titleID]
     if type(entry) ~= "table" then
@@ -272,6 +347,8 @@ function Log:Record(titleID, unit, info)
             firstZone = zone,
             lastName = fullName,
             classTag = classTag,
+            raceTag = raceTag,
+            sex = sex,
             titleText = titleText,
             titleType = titleType,
             quality = quality,
@@ -311,6 +388,12 @@ function Log:Record(titleID, unit, info)
     end
     if not entry.classTag and classTag then
         entry.classTag = classTag
+    end
+    if not entry.raceTag and raceTag then
+        entry.raceTag = raceTag
+    end
+    if not entry.sex and sex then
+        entry.sex = sex
     end
 
     return false
@@ -358,11 +441,11 @@ function Log:Export()
         return EXPORT_MAGIC
     end
 
-    local lines = { EXPORT_MAGIC }
+    local dataLines = {}
     for titleID, entry in pairs(store) do
         local normalized = NormalizeEntry(entry, time())
         if normalized then
-            lines[#lines + 1] = table.concat({
+            dataLines[#dataLines + 1] = table.concat({
                 tostring(titleID),
                 tostring(normalized.firstSeen or ""),
                 tostring(normalized.lastSeen or ""),
@@ -371,6 +454,8 @@ function Log:Export()
                 EscapeValue(normalized.firstZone),
                 EscapeValue(normalized.lastName),
                 EscapeValue(normalized.classTag),
+                EscapeValue(normalized.raceTag),
+                tostring(normalized.sex or ""),
                 EscapeValue(normalized.titleText),
                 EscapeValue(normalized.titleType),
                 EscapeValue(normalized.quality),
@@ -380,11 +465,27 @@ function Log:Export()
         end
     end
 
-    table.sort(lines, function(a, b)
-        if a == EXPORT_MAGIC then return true end
-        if b == EXPORT_MAGIC then return false end
-        return a < b
-    end)
+    table.sort(dataLines)
+
+    local ownerKey = CurrentCharacterKey()
+    local ownerGUID = CurrentCharacterGUID()
+    if not ownerKey or ownerKey == "" or not ownerGUID then
+        return EXPORT_MAGIC
+    end
+
+    local signature = BuildBindingSignature(ownerKey, ownerGUID, dataLines)
+    if not signature then
+        return EXPORT_MAGIC
+    end
+
+    local lines = {
+        EXPORT_MAGIC,
+        table.concat({ EXPORT_BIND_PREFIX, EscapeValue(ownerKey), EscapeValue(ownerGUID), signature }, "|"),
+    }
+
+    for _, line in ipairs(dataLines) do
+        lines[#lines + 1] = line
+    end
 
     local raw = table.concat(lines, "\n")
     local encoded = Base64Encode(raw)
@@ -419,85 +520,146 @@ function Log:Import(payload)
         return false, 0, "SavedVariables unavailable"
     end
 
-    local imported = 0
+    local ownerKey = nil
+    local ownerGUID = nil
+    local incomingSig = nil
+    local isLegacyBinding = false
+    local dataLines = {}
+
     for line in payload:gmatch("[^\n]+") do
         if line ~= EXPORT_MAGIC and line ~= "" then
-            local fields = SplitFields(line)
-            local titleID = tonumber(fields[1] or "")
-            if titleID then
-                local incoming = NormalizeEntry({
-                    firstSeen = tonumber(fields[2] or ""),
-                    lastSeen = tonumber(fields[3] or ""),
-                    count = tonumber(fields[4] or ""),
-                    firstName = UnescapeValue(fields[5] or ""),
-                    firstZone = UnescapeValue(fields[6] or ""),
-                    lastName = UnescapeValue(fields[7] or ""),
-                    classTag = UnescapeValue(fields[8] or ""),
-                    titleText = UnescapeValue(fields[9] or ""),
-                    titleType = UnescapeValue(fields[10] or ""),
-                    quality = UnescapeValue(fields[11] or ""),
-                    kind = UnescapeValue(fields[12] or ""),
-                    cat = UnescapeValue(fields[13] or ""),
-                }, time())
+            if line:sub(1, #EXPORT_BIND_PREFIX + 1) == (EXPORT_BIND_PREFIX .. "|") then
+                local fields = SplitFields(line)
+                ownerKey = UnescapeValue(fields[2] or "")
+                if fields[4] and fields[4] ~= "" then
+                    ownerGUID = UnescapeValue(fields[3] or "")
+                    incomingSig = tostring(fields[4])
+                else
+                    isLegacyBinding = true
+                    incomingSig = fields[3] and tostring(fields[3]) or nil
+                end
+            else
+                dataLines[#dataLines + 1] = line
+            end
+        end
+    end
 
-                if incoming then
-                    local current = store[titleID]
-                    if type(current) ~= "table" then
-                        store[titleID] = incoming
-                        imported = imported + 1
-                    else
-                        local changed = false
+    if not ownerKey or ownerKey == "" or not incomingSig or incomingSig == "" then
+        return false, 0, "Export is missing character binding metadata"
+    end
 
-                        if (tonumber(incoming.firstSeen) or 0) < (tonumber(current.firstSeen) or math.huge) then
-                            current.firstSeen = incoming.firstSeen
-                            current.firstName = incoming.firstName
-                            current.firstZone = incoming.firstZone
-                            changed = true
-                        end
+    local currentKey = CurrentCharacterKey()
+    if not currentKey or currentKey ~= ownerKey then
+        return false, 0, "Export belongs to character " .. tostring(ownerKey)
+    end
 
-                        if (tonumber(incoming.lastSeen) or 0) > (tonumber(current.lastSeen) or 0) then
-                            current.lastSeen = incoming.lastSeen
-                            current.lastName = incoming.lastName
-                            if incoming.classTag then
-                                current.classTag = incoming.classTag
-                            end
-                            changed = true
-                        end
+    if not isLegacyBinding then
+        local currentGUID = CurrentCharacterGUID()
+        if not currentGUID or ownerGUID ~= currentGUID then
+            return false, 0, "Export belongs to a different character identity"
+        end
 
-                        local mergedCount = math.max(tonumber(current.count) or 1, tonumber(incoming.count) or 1)
-                        if mergedCount ~= (tonumber(current.count) or 1) then
-                            current.count = mergedCount
-                            changed = true
-                        end
+        local expectedSig = BuildBindingSignature(ownerKey, ownerGUID, dataLines)
+        if not expectedSig or incomingSig:lower() ~= expectedSig then
+            return false, 0, "Export signature mismatch"
+        end
+    end
 
-                        if (not current.titleText or current.titleText == "") and incoming.titleText then
-                            current.titleText = incoming.titleText
-                            changed = true
-                        end
-                        if (not current.titleType or current.titleType == "") and incoming.titleType then
-                            current.titleType = incoming.titleType
-                            changed = true
-                        end
-                        if (not current.quality or current.quality == "") and incoming.quality then
-                            current.quality = incoming.quality
-                            changed = true
-                        end
-                        if (not current.kind or current.kind == "") and incoming.kind then
-                            current.kind = incoming.kind
-                            changed = true
-                        end
-                        if (not current.cat or current.cat == "") and incoming.cat then
-                            current.cat = incoming.cat
-                            changed = true
-                        end
-                        if (not current.classTag or current.classTag == "") and incoming.classTag then
+    local imported = 0
+    for _, line in ipairs(dataLines) do
+        local fields = SplitFields(line)
+        local titleID = tonumber(fields[1] or "")
+        if titleID then
+            local fieldCount = #fields
+            local hasRaceField = fieldCount >= 14
+            local hasSexField = fieldCount >= 15
+            local idxTitleText = hasSexField and 11 or (hasRaceField and 10 or 9)
+            local idxTitleType = hasSexField and 12 or (hasRaceField and 11 or 10)
+            local idxQuality = hasSexField and 13 or (hasRaceField and 12 or 11)
+            local idxKind = hasSexField and 14 or (hasRaceField and 13 or 12)
+            local idxCat = hasSexField and 15 or (hasRaceField and 14 or 13)
+            local incoming = NormalizeEntry({
+                firstSeen = tonumber(fields[2] or ""),
+                lastSeen = tonumber(fields[3] or ""),
+                count = tonumber(fields[4] or ""),
+                firstName = UnescapeValue(fields[5] or ""),
+                firstZone = UnescapeValue(fields[6] or ""),
+                lastName = UnescapeValue(fields[7] or ""),
+                classTag = UnescapeValue(fields[8] or ""),
+                raceTag = hasRaceField and UnescapeValue(fields[9] or "") or nil,
+                sex = hasSexField and tonumber(fields[10] or "") or nil,
+                titleText = UnescapeValue(fields[idxTitleText] or ""),
+                titleType = UnescapeValue(fields[idxTitleType] or ""),
+                quality = UnescapeValue(fields[idxQuality] or ""),
+                kind = UnescapeValue(fields[idxKind] or ""),
+                cat = UnescapeValue(fields[idxCat] or ""),
+            }, time())
+
+            if incoming then
+                local current = store[titleID]
+                if type(current) ~= "table" then
+                    store[titleID] = incoming
+                    imported = imported + 1
+                else
+                    local changed = false
+
+                    if (tonumber(incoming.firstSeen) or 0) < (tonumber(current.firstSeen) or math.huge) then
+                        current.firstSeen = incoming.firstSeen
+                        current.firstName = incoming.firstName
+                        current.firstZone = incoming.firstZone
+                        changed = true
+                    end
+
+                    if (tonumber(incoming.lastSeen) or 0) > (tonumber(current.lastSeen) or 0) then
+                        current.lastSeen = incoming.lastSeen
+                        current.lastName = incoming.lastName
+                        if incoming.classTag then
                             current.classTag = incoming.classTag
-                            changed = true
                         end
+                        changed = true
+                    end
 
-                        if changed then
-                            imported = imported + 1
-                        end
+                    local mergedCount = math.max(tonumber(current.count) or 1, tonumber(incoming.count) or 1)
+                    if mergedCount ~= (tonumber(current.count) or 1) then
+                        current.count = mergedCount
+                        changed = true
+                    end
+
+                    if (not current.titleText or current.titleText == "") and incoming.titleText then
+                        current.titleText = incoming.titleText
+                        changed = true
+                    end
+                    if (not current.titleType or current.titleType == "") and incoming.titleType then
+                        current.titleType = incoming.titleType
+                        changed = true
+                    end
+                    if (not current.quality or current.quality == "") and incoming.quality then
+                        current.quality = incoming.quality
+                        changed = true
+                    end
+                    if (not current.kind or current.kind == "") and incoming.kind then
+                        current.kind = incoming.kind
+                        changed = true
+                    end
+                    if (not current.cat or current.cat == "") and incoming.cat then
+                        current.cat = incoming.cat
+                        changed = true
+                    end
+                    if (not current.classTag or current.classTag == "") and incoming.classTag then
+                        current.classTag = incoming.classTag
+                        changed = true
+                    end
+                    if (not current.raceTag or current.raceTag == "") and incoming.raceTag then
+                        current.raceTag = incoming.raceTag
+                        changed = true
+                    end
+                    if (not current.sex) and incoming.sex then
+                        current.sex = incoming.sex
+                        changed = true
+                    end
+
+                    if changed then
+                        imported = imported + 1
                     end
                 end
             end

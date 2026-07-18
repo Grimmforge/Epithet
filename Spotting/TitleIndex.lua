@@ -11,6 +11,7 @@ local GetTitleName = GetTitleName
 local UnitIsPlayer = UnitIsPlayer
 local UnitName = UnitName
 local UnitPVPName = UnitPVPName
+local pairs, ipairs, next = pairs, ipairs, next
 
 local index = nil
 local built = false
@@ -82,20 +83,27 @@ local function EscapePattern(text)
     return (text:gsub("([%(%)%.%%%+%-%*%?%[%]%^%$])", "%%%1"))
 end
 
-local function BuildCandidates(full, base)
-    local candidates = {}
+-- Reused across calls to avoid allocating a fresh table on every Resolve()
+-- (this runs from the UNIT_NAME_UPDATE / PLAYER_TARGET_CHANGED hot path).
+local candidateScratch = {}
 
-    local function Push(value)
-        local normalized = Normalize(value)
-        if normalized ~= "" then
-            candidates[#candidates + 1] = normalized
-        end
+local function PushCandidate(candidates, value)
+    local normalized = Normalize(value)
+    if normalized ~= "" then
+        candidates[#candidates + 1] = normalized
+    end
+end
+
+local function BuildCandidates(full, base)
+    local candidates = candidateScratch
+    for i = #candidates, 1, -1 do
+        candidates[i] = nil
     end
 
     if full and full:find(",", 1, true) then
         local commaSuffix = full:match("^[^,]+,%s*(.+)$")
         if commaSuffix then
-            Push(commaSuffix)
+            PushCandidate(candidates, commaSuffix)
         end
     end
 
@@ -104,22 +112,22 @@ local function BuildCandidates(full, base)
         local baseEsc = EscapePattern(base)
         local basePlainEsc = EscapePattern(basePlain)
 
-        Push(StripLeading(full, base))
-        Push(StripTrailing(full, base))
+        PushCandidate(candidates, StripLeading(full, base))
+        PushCandidate(candidates, StripTrailing(full, base))
 
         if basePlain ~= base then
-            Push(StripLeading(full, basePlain))
-            Push(StripTrailing(full, basePlain))
+            PushCandidate(candidates, StripLeading(full, basePlain))
+            PushCandidate(candidates, StripTrailing(full, basePlain))
         end
 
         local prefixed = full:gsub("%s*" .. baseEsc .. "$", "", 1)
         if prefixed ~= full then
-            Push(prefixed)
+            PushCandidate(candidates, prefixed)
         end
 
         local prefixedPlain = full:gsub("%s*" .. basePlainEsc .. "$", "", 1)
         if prefixedPlain ~= full then
-            Push(prefixedPlain)
+            PushCandidate(candidates, prefixedPlain)
         end
     end
 
@@ -146,7 +154,9 @@ function TitleIndex:Build()
     if recordsByID then
         for titleID, record in pairs(recordsByID) do
             if record and record.titleID then
-                local raw = GetTitleName and GetTitleName(titleID) or nil
+                -- TitleData:Scan() already fetched and classified this string;
+                -- reuse it instead of a second GetTitleName() + parse pass.
+                local raw = record.raw or (GetTitleName and GetTitleName(titleID))
                 local fragment = ExtractFragment(raw)
                 if fragment and fragment ~= "" and not index[fragment] then
                     index[fragment] = titleID

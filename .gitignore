@@ -8,6 +8,9 @@ data/schema.json
 # Build output
 dist/
 
+# Planning docs
+plans/
+
 # Ace3 embedded libs (fetched by .pkgmeta / packager)
 libs/
 

@@ -102,16 +102,17 @@ end
 -- ---------------------------------------------------------------------------
 -- Get earned date from achievement info (if available)
 -- ---------------------------------------------------------------------------
+local MONTH_NAMES = {
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+}
+
 local function GetEarnedDate(sourceID)
     if not sourceID or not GetAchievementInfo then return nil end
     local _, _, _, completed, month, day, year = GetAchievementInfo(sourceID)
     if completed and day and month and year and year > 0 then
         -- Format as "dd Month yyyy" (UK format)
-        local months = {
-            "January", "February", "March", "April", "May", "June",
-            "July", "August", "September", "October", "November", "December",
-        }
-        return format("%d %s %d", day, months[month] or "?", 2000 + year)
+        return format("%d %s %d", day, MONTH_NAMES[month] or "?", 2000 + year)
     end
     return nil
 end
@@ -125,6 +126,7 @@ function TitleData:Scan(force)
 
     local records = {}
     local recordsByID = {}
+    local recordsByLowerText = {}
     local earnedCount = 0
     local totalCount = 0
     local earnedObtainableCount = 0
@@ -150,6 +152,7 @@ function TitleData:Scan(force)
                 local record = {
                     titleID   = titleID,
                     text      = text,
+                    raw       = raw, -- unclassified GetTitleName() string, reused by TitleIndex to avoid a second API pass
                     -- Prefer the bundled DB's authoritative type; fall back to
                     -- the live classification for titles not in the DB.
                     type      = (static and static.type) or titleType,
@@ -206,12 +209,21 @@ function TitleData:Scan(force)
 
                 records[#records + 1] = record
                 recordsByID[titleID] = record
+
+                local lowerText = strlower(text)
+                local sameText = recordsByLowerText[lowerText]
+                if not sameText then
+                    sameText = {}
+                    recordsByLowerText[lowerText] = sameText
+                end
+                sameText[#sameText + 1] = record
             end
         end
     end
 
     self.records = records
     self.recordsByID = recordsByID
+    self.recordsByLowerText = recordsByLowerText
     self.earnedCount = earnedCount
     self.totalCount = totalCount
     self.earnedObtainableCount = earnedObtainableCount

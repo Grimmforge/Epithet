@@ -2,6 +2,32 @@
 
 ---
 
+## [1.2.0] - 2026-07-17
+
+### Added
+
+- **Epithet Achievements system** — Added account- and character-scoped achievements for title spotting and ownership, including progression tiers, coverage goals, crossover achievements, secret achievements, and persistent earned records.
+- **Ownership snapshot tracking** — Added per-character ownership detection storage to support ownership and crossover achievement checks.
+- **Achievement notifications** — Added achievement-earned alerts with chat output and configurable notification toggle in settings.
+- **Dedicated Epithet Achievements modal** — Added a separate achievements popup (distinct from Spotting Log) opened from a new 1:1 header button.
+- **Achievement tile detail overlay** — Achievement tiles are now clickable and open a themed detail overlay with description, earned/progress status, and contextual detail.
+- **Versioned What’s New feature** — Added a packaged, version-mapped What’s New dialog with per-version first-run and has-new flags, plus `/epithet whatsnew` to reopen.
+- **Documentation** — Added a dedicated technical guide for the What’s New system in `docs/WHATS_NEW_FEATURE.md`.
+
+### Changed
+
+- **Header controls layout** — Added and iterated the achievements launcher icon in the main header; adjusted header count/progress/toggle spacing to avoid overlap.
+- **Achievements visual style** — Converted achievements to responsive square tiles that dynamically fill row width, with icon-first presentation and improved earned/unearned readability.
+- **Secret achievement presentation** — Secret unearned achievements now use masked visuals and question-mark imagery until revealed.
+- **Achievement icon set** — Implemented per-achievement icon mapping and updated several specific icons based on latest tuning.
+- **Tooltip and naming polish** — Renamed user-facing "Spotting Achievements" references to **Epithet Achievements** and aligned tooltip copy.
+
+### Fixed
+
+- **Startup event error** — Removed invalid event registration that could stop addon initialization and suppress other startup features.
+- **Crossover timestamp reliability** — Updated crossover checks (including Window Shopper/Takes One to Know One) to prefer reliable ownership timing signals when available, reducing false positives from baseline scan timing.
+- **What’s New SimpleHTML compatibility** — Fixed API-usage issues across `SetJustify*`, `SetSpacing`, and `SetFont`; added robust content-height fallback for clients without `SimpleHTML:GetStringHeight()`.
+
 ## [1.1.0] - 2026-06-09
 
 ### Added

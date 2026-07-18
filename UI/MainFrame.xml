@@ -90,7 +90,7 @@
             <!-- Title Bar (custom, replaces portrait chrome)                  -->
             <!-- =========================================================== -->
             <Frame name="$parentTitleBar" parentKey="TitleBar" enableMouse="true">
-                <Size x="0" y="36"/>
+                <Size x="0" y="44"/>
                 <Anchors>
                     <Anchor point="TOPLEFT" x="3" y="-3"/>
                     <Anchor point="TOPRIGHT" x="-3" y="-3"/>
@@ -105,7 +105,7 @@
                         <!-- Logo icon (wax seal) -->
                         <Texture parentKey="Logo"
                                  file="Interface\AddOns\Epithet\icons\logo\epithet-wax-seal-red-mark-32">
-                            <Size x="24" y="24"/>
+                            <Size x="30" y="30"/>
                             <Anchors>
                                 <Anchor point="LEFT" x="10" y="0"/>
                             </Anchors>
@@ -131,18 +131,25 @@
                 <Frames>
                     <!-- Info / About button -->
                     <Button name="$parentInfoButton" parentKey="InfoButton">
-                        <Size x="20" y="20"/>
+                        <Size x="26" y="26"/>
                         <Anchors>
-                            <Anchor point="RIGHT" x="-32" y="0"/>
+                            <Anchor point="RIGHT" x="-42" y="0"/>
                         </Anchors>
                         <Layers>
                             <Layer level="ARTWORK">
-                                <FontString parentKey="Label" inherits="GameFontNormalSmall"
+                                <Texture parentKey="Ring" file="Interface\AddOns\Epithet\icons\ui\epithet-ui-circle-ring-32">
+                                    <Size x="26" y="26"/>
+                                    <Anchors>
+                                        <Anchor point="CENTER"/>
+                                    </Anchors>
+                                    <Color r="1.0" g="1.0" b="1.0" a="0.85"/>
+                                </Texture>
+                                <FontString parentKey="Label" inherits="GameFontNormal"
                                             text="i" justifyH="CENTER">
                                     <Anchors>
-                                        <Anchor point="CENTER" x="0" y="0"/>
+                                        <Anchor point="CENTER" x="0" y="-1"/>
                                     </Anchors>
-                                    <Color r="1.0" g="1.0" b="1.0" a="0.6"/>
+                                    <Color r="1.0" g="1.0" b="1.0" a="0.9"/>
                                 </FontString>
                             </Layer>
                         </Layers>
@@ -152,15 +159,17 @@
                             </OnClick>
                             <OnEnter>
                                 self.Label:SetTextColor(1.0, 1.0, 1.0, 1.0)
+                                self.Ring:SetVertexColor(1.0, 1.0, 1.0, 1.0)
                             </OnEnter>
                             <OnLeave>
-                                self.Label:SetTextColor(1.0, 1.0, 1.0, 0.6)
+                                self.Label:SetTextColor(1.0, 1.0, 1.0, 0.9)
+                                self.Ring:SetVertexColor(1.0, 1.0, 1.0, 0.85)
                             </OnLeave>
                         </Scripts>
                     </Button>
                     <!-- Close button (custom tinted icon) -->
                     <Button name="$parentCloseButton" parentKey="CloseButton">
-                        <Size x="20" y="20"/>
+                        <Size x="26" y="26"/>
                         <Anchors>
                             <Anchor point="RIGHT" x="-8" y="0"/>
                         </Anchors>
@@ -168,7 +177,7 @@
                             <Layer level="ARTWORK">
                                 <Texture parentKey="Icon"
                                          file="Interface\AddOns\Epithet\icons\ui\epithet-ui-close-16">
-                                    <Size x="14" y="14"/>
+                                    <Size x="18" y="18"/>
                                     <Anchors>
                                         <Anchor point="CENTER"/>
                                     </Anchors>
@@ -212,8 +221,8 @@
             <Frame name="$parentHeader" parentKey="Header">
                 <Size x="0" y="78"/>
                 <Anchors>
-                    <Anchor point="TOPLEFT" relativePoint="TOPLEFT" x="16" y="-44"/>
-                    <Anchor point="TOPRIGHT" relativePoint="TOPRIGHT" x="-16" y="-44"/>
+                    <Anchor point="TOPLEFT" relativePoint="TOPLEFT" x="16" y="-52"/>
+                    <Anchor point="TOPRIGHT" relativePoint="TOPRIGHT" x="-16" y="-52"/>
                 </Anchors>
                 <Layers>
                     <Layer level="BACKGROUND">

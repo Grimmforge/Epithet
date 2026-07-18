@@ -31,15 +31,9 @@ end
 local MainFrame = {}
 ns.MainFrame = MainFrame
 
-local RARITY_GEMS = {
-    "Interface\\AddOns\\Epithet\\icons\\rarity\\epithet-rarity-1-common-32",
-    "Interface\\AddOns\\Epithet\\icons\\rarity\\epithet-rarity-2-uncommon-32",
-    "Interface\\AddOns\\Epithet\\icons\\rarity\\epithet-rarity-3-rare-32",
-    "Interface\\AddOns\\Epithet\\icons\\rarity\\epithet-rarity-4-epic-32",
-    "Interface\\AddOns\\Epithet\\icons\\rarity\\epithet-rarity-5-legendary-32",
-}
+local RARITY_GEMS = T and T.RarityGems32
 
-local HEADER_SPOTTED_COL_WIDTH = 62
+local HEADER_SPOTTED_COL_WIDTH = 130
 local HEADER_SPOTTED_COL_GAP = 10
 
 local frame = nil  -- reference to EpithetMainFrame

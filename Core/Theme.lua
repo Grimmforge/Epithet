@@ -53,6 +53,24 @@ Theme.quality = {
     [5] = { label = "Legendary", pip = C("ff8000"), text = C("ffa334") },
 }
 
+-- ---- rarity gem icon paths, shared so UI/MainFrame.lua, UI/Detail.lua and
+-- UI/TitleList.lua stay in sync if a new quality tier is ever added --------
+Theme.RarityGems32 = {
+    "Interface\\AddOns\\Epithet\\icons\\rarity\\epithet-rarity-1-common-32",
+    "Interface\\AddOns\\Epithet\\icons\\rarity\\epithet-rarity-2-uncommon-32",
+    "Interface\\AddOns\\Epithet\\icons\\rarity\\epithet-rarity-3-rare-32",
+    "Interface\\AddOns\\Epithet\\icons\\rarity\\epithet-rarity-4-epic-32",
+    "Interface\\AddOns\\Epithet\\icons\\rarity\\epithet-rarity-5-legendary-32",
+}
+
+Theme.RarityGems64 = {
+    "Interface\\AddOns\\Epithet\\icons\\rarity\\epithet-rarity-1-common-64",
+    "Interface\\AddOns\\Epithet\\icons\\rarity\\epithet-rarity-2-uncommon-64",
+    "Interface\\AddOns\\Epithet\\icons\\rarity\\epithet-rarity-3-rare-64",
+    "Interface\\AddOns\\Epithet\\icons\\rarity\\epithet-rarity-4-epic-64",
+    "Interface\\AddOns\\Epithet\\icons\\rarity\\epithet-rarity-5-legendary-64",
+}
+
 -- |cffRRGGBB....|r colour wrap for FontString rich text
 function Theme.Wrap(hex, s)
     return "|cff" .. hex .. tostring(s) .. "|r"

@@ -15,25 +15,6 @@ local Filters = {}
 ns.Filters = Filters
 
 -- ---------------------------------------------------------------------------
--- Default filter state
--- ---------------------------------------------------------------------------
-function Filters:GetDefaults()
-    return {
-        search   = "",
-        status   = "all",      -- "all" | "earned" | "unearned"
-        rarity   = {},         -- empty = unrestricted; set of tier numbers {[3]=true,[5]=true}
-        type     = {},         -- empty = unrestricted; {["prefix"]=true}
-        exp      = {},         -- empty = unrestricted; {["wrath"]=true}
-        cat      = {},         -- empty = unrestricted; {["PvP"]=true}
-        kind     = {},         -- empty = unrestricted; {["Achievement"]=true}
-        faction  = {},         -- empty = unrestricted; {["Alliance"]=true}
-        hideUnobtainable   = false,
-        hideTimeSensitive  = false,
-        favouritesOnly     = false,
-    }
-end
-
--- ---------------------------------------------------------------------------
 -- Check if filters are at default (nothing active)
 -- ---------------------------------------------------------------------------
 function Filters:IsDefault(filters)
@@ -340,13 +321,13 @@ function Filters:BuildDisplayList(records, sortMode)
             local c = record.cat or ""
             if c ~= currentCat then
                 currentCat = c
-                table.insert(display, {
+                display[#display + 1] = {
                     isHeader = true,
                     label = (c ~= "") and c:upper() or "UNCATEGORIZED",
                     count = catCounts[c] or 0,
-                })
+                }
             end
-            table.insert(display, record)
+            display[#display + 1] = record
         end
         return display
     end
@@ -370,21 +351,21 @@ function Filters:BuildDisplayList(records, sortMode)
 
     for _, record in ipairs(sorted) do
         if record.earned and not insertedEarnedHeader then
-            table.insert(display, {
+            display[#display + 1] = {
                 isHeader = true,
                 label = ns.L and ns.L["GROUP_COLLECTED"] or "COLLECTED",
                 count = earnedCount,
-            })
+            }
             insertedEarnedHeader = true
         elseif not record.earned and not insertedLockedHeader then
-            table.insert(display, {
+            display[#display + 1] = {
                 isHeader = true,
                 label = ns.L and ns.L["GROUP_NOT_COLLECTED"] or "NOT YET COLLECTED",
                 count = lockedCount,
-            })
+            }
             insertedLockedHeader = true
         end
-        table.insert(display, record)
+        display[#display + 1] = record
     end
 
     return display

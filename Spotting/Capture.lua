@@ -16,6 +16,10 @@ local UnitIsUnit = UnitIsUnit
 local UnitName = UnitName
 local UnitPVPName = UnitPVPName
 local UnitClass = UnitClass
+local UnitRace = UnitRace
+local UnitSex = UnitSex
+local GetCurrentTitle = GetCurrentTitle
+local time = time
 
 local RETRY_DELAY = 0.3
 local RETRY_WINDOW = 1.0
@@ -146,10 +150,24 @@ function Capture:TryCapture(unit, fromRetry)
     local kind = nil
     local cat = nil
     local classTag = nil
+    local raceTag = nil
+    local sex = nil
 
     if UnitClass then
         local _, classFile = UnitClass(unit)
         classTag = classFile
+    end
+
+    if UnitRace then
+        local _, raceFile = UnitRace(unit)
+        raceTag = raceFile
+    end
+
+    if UnitSex then
+        local unitSex = tonumber(UnitSex(unit))
+        if unitSex == 2 or unitSex == 3 then
+            sex = unitSex
+        end
     end
 
     -- Prefer runtime-resolved IDs first so sightings always map to live TitleData.
@@ -170,12 +188,15 @@ function Capture:TryCapture(unit, fromRetry)
     if not titleID and ns.SocialLayer and ns.SocialLayer.GetRecordForUnit then
         local socialRecord = ns.SocialLayer:GetRecordForUnit(unit)
 
-        if socialRecord and socialRecord.titleText and ns.TitleData and ns.TitleData.records then
+        if socialRecord and socialRecord.titleText and ns.TitleData and ns.TitleData.recordsByLowerText then
+            -- O(1) lookup via the lowercase-text index built during Scan(),
+            -- instead of a linear scan over every known title record.
             local targetText = tostring(socialRecord.titleText):lower()
             local targetType = socialRecord.type
-            for _, record in ipairs(ns.TitleData.records) do
-                if record and record.titleID and record.text and tostring(record.text):lower() == targetText then
-                    if not targetType or record.type == targetType then
+            local candidates = ns.TitleData.recordsByLowerText[targetText]
+            if candidates then
+                for _, record in ipairs(candidates) do
+                    if record and record.titleID and (not targetType or record.type == targetType) then
                         titleID = record.titleID
                         titleText = record.text
                         titleType = record.type
@@ -208,6 +229,17 @@ function Capture:TryCapture(unit, fromRetry)
         return
     end
 
+    local myTitleID = GetCurrentTitle and tonumber(GetCurrentTitle()) or nil
+    if myTitleID and myTitleID == titleID then
+        local db = ns.EnsureSpottingRootDB and ns.EnsureSpottingRootDB()
+        if db and not db.spottingEvents.twinsies then
+            db.spottingEvents.twinsies = {
+                at = time(),
+                titleID = titleID,
+            }
+        end
+    end
+
     self.retryGUID = nil
     self:MarkProcessed(guid)
 
@@ -218,7 +250,14 @@ function Capture:TryCapture(unit, fromRetry)
         kind = kind,
         cat = cat,
         classTag = classTag,
+        raceTag = raceTag,
+        sex = sex,
     })
+
+    if ns.SpottingAchievements and ns.SpottingAchievements.OnSpotRecorded then
+        ns.SpottingAchievements:OnSpotRecorded()
+    end
+
     if isNew then
         self:NotifyNewSpot(titleID)
     end

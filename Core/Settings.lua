@@ -589,6 +589,16 @@ function Options:Init()
             if profile then profile.spotNotify = value end
         end)
 
+    local achievementNotify = MakeCheck(L["SOCIAL_ACHIEVEMENT_NOTIFY"] or "Achievement notifications", -466,
+        function()
+            local profile = GetProfile()
+            return profile and profile.achievementNotify ~= false
+        end,
+        function(value)
+            local profile = GetProfile()
+            if profile then profile.achievementNotify = value end
+        end)
+
     local positionHeading = (T and T.Sans and T.Sans(canvas, 12, T.col.goldDim)) or canvas:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     positionHeading:SetPoint("TOPLEFT", 16, -462)
     positionHeading:SetText(L["SOCIAL_POSITION_SECTION"] or "Position")
@@ -690,8 +700,11 @@ function Options:Init()
     spotNotify:ClearAllPoints()
     spotNotify:SetPoint("TOPLEFT", hideInGroup, "BOTTOMLEFT", 0, -8)
 
+    achievementNotify:ClearAllPoints()
+    achievementNotify:SetPoint("TOPLEFT", spotNotify, "BOTTOMLEFT", 0, -8)
+
     positionHeading:ClearAllPoints()
-    positionHeading:SetPoint("TOPLEFT", spotNotify, "BOTTOMLEFT", 0, -14)
+    positionHeading:SetPoint("TOPLEFT", achievementNotify, "BOTTOMLEFT", 0, -14)
 
     unlockTarget:ClearAllPoints()
     unlockTarget:SetPoint("TOPLEFT", positionHeading, "BOTTOMLEFT", 0, -6)
@@ -736,6 +749,7 @@ function Options:Init()
         hideInCombat,
         hideInGroup,
         spotNotify,
+        achievementNotify,
         positionHeading,
         unlockTarget,
         resetTarget,
@@ -836,6 +850,7 @@ function Options:Init()
         hideInCombat:Refresh()
         hideInGroup:Refresh()
         spotNotify:Refresh()
+        achievementNotify:Refresh()
         unlockTarget:Refresh()
         UpdateScrollBounds((socialEnabled and resetTarget) or enabled)
     end

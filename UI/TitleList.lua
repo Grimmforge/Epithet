@@ -12,6 +12,11 @@ local tconcat  = table.concat
 local strlower = strlower
 local format   = string.format
 local UnitName = UnitName
+local wipe     = wipe
+
+-- Scratch table reused per-row to avoid allocating in InitTitleRow (called
+-- once per visible row on every scroll/refresh).
+local metaScratch = {}
 
 local TitleList = {}
 ns.TitleList = TitleList
@@ -27,13 +32,7 @@ local UNOBTAIN_HOURGLASS = "Interface\\AddOns\\Epithet\\icons\\ui\\epithet-ui-un
 local FACTION_ALLIANCE = "Interface\\AddOns\\Epithet\\icons\\ui\\alliance-logo-white"
 local FACTION_HORDE    = "Interface\\AddOns\\Epithet\\icons\\ui\\horde-logo-white"
 
-local RARITY_GEMS = {
-    "Interface\\AddOns\\Epithet\\icons\\rarity\\epithet-rarity-1-common-64",
-    "Interface\\AddOns\\Epithet\\icons\\rarity\\epithet-rarity-2-uncommon-64",
-    "Interface\\AddOns\\Epithet\\icons\\rarity\\epithet-rarity-3-rare-64",
-    "Interface\\AddOns\\Epithet\\icons\\rarity\\epithet-rarity-4-epic-64",
-    "Interface\\AddOns\\Epithet\\icons\\rarity\\epithet-rarity-5-legendary-64",
-}
+local RARITY_GEMS = T and T.RarityGems64
 
 -- Inline star texture escape (prepended to title text for favourites)
 local FAV_STAR = "|TInterface\\AddOns\\Epithet\\icons\\ui\\star:12:12|t "
@@ -164,6 +163,39 @@ function TitleList:Refresh()
     self.scrollBox:SetDataProvider(dataProvider, ScrollBoxConstants.RetainScrollPosition)
 end
 
+-- Stable row-script handlers: read row.record (kept current by InitTitleRow
+-- on every acquire) instead of closing over `record`, so InitTitleRow can
+-- bind them once per row instead of allocating 3 new closures per refresh.
+local function RowOnEnter(row)
+    ns.MainFrame:SetHover(row.record)
+end
+
+local function RowOnLeave(_row)
+    ns.MainFrame:ClearHover()
+end
+
+local function RowOnClick(row)
+    TitleList:SetSelection(row.record)
+end
+
+-- Shared by InitTitleRow and RefreshSelectionVisuals so the selection
+-- highlight (fill + 4 border edges) only has one place to keep in sync.
+local function ApplySelectionVisual(frame, isSelected)
+    if isSelected then
+        frame.Selected:Show()
+        frame.SelBorderTop:Show()
+        frame.SelBorderBottom:Show()
+        frame.SelBorderLeft:Show()
+        frame.SelBorderRight:Show()
+    else
+        frame.Selected:Hide()
+        frame.SelBorderTop:Hide()
+        frame.SelBorderBottom:Hide()
+        frame.SelBorderLeft:Hide()
+        frame.SelBorderRight:Hide()
+    end
+end
+
 -- ---------------------------------------------------------------------------
 -- Title row initialiser (called each time a row is acquired/recycled)
 -- ---------------------------------------------------------------------------
@@ -279,7 +311,8 @@ function TitleList:InitTitleRow(row, record)
         meta:SetJustifyH("LEFT")
         row.MetaText = meta
     end
-    local metaParts = {}
+    local metaParts = metaScratch
+    wipe(metaParts)
     if record.exp then
         metaParts[#metaParts + 1] = ns.EXPANSION_LABELS[record.exp] or record.exp
     end
@@ -360,30 +393,14 @@ function TitleList:InitTitleRow(row, record)
     end
 
     -- Selection highlight (fill + border)
-    if record == self.selectedRecord then
-        row.Selected:Show()
-        row.SelBorderTop:Show()
-        row.SelBorderBottom:Show()
-        row.SelBorderLeft:Show()
-        row.SelBorderRight:Show()
-    else
-        row.Selected:Hide()
-        row.SelBorderTop:Hide()
-        row.SelBorderBottom:Hide()
-        row.SelBorderLeft:Hide()
-        row.SelBorderRight:Hide()
-    end
+    ApplySelectionVisual(row, record == self.selectedRecord)
     row.Highlight:Hide()
 
-    -- Handlers
-    row.OnRowEnter = function(self_)
-        ns.MainFrame:SetHover(record)
-    end
-    row.OnRowLeave = function(self_)
-        ns.MainFrame:ClearHover()
-    end
-    row.OnRowClick = function(self_)
-        TitleList:SetSelection(record)
+    -- Handlers (bound once; they read row.record, which is kept current above)
+    if not row.OnRowEnter then
+        row.OnRowEnter = RowOnEnter
+        row.OnRowLeave = RowOnLeave
+        row.OnRowClick = RowOnClick
     end
 end
 
@@ -470,19 +487,7 @@ function TitleList:RefreshSelectionVisuals()
     if not self.scrollBox then return end
     self.scrollBox:ForEachFrame(function(frame)
         if frame.record then
-            if frame.record == self.selectedRecord then
-                frame.Selected:Show()
-                frame.SelBorderTop:Show()
-                frame.SelBorderBottom:Show()
-                frame.SelBorderLeft:Show()
-                frame.SelBorderRight:Show()
-            else
-                frame.Selected:Hide()
-                frame.SelBorderTop:Hide()
-                frame.SelBorderBottom:Hide()
-                frame.SelBorderLeft:Hide()
-                frame.SelBorderRight:Hide()
-            end
+            ApplySelectionVisual(frame, frame.record == self.selectedRecord)
         end
     end)
 end

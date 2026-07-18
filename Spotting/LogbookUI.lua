@@ -11,11 +11,73 @@ ns.LogbookUI = LogbookUI
 local CHECK_ICON = "Interface\\AddOns\\Epithet\\icons\\ui\\epithet-ui-check-32"
 local LOCK_ICON = "Interface\\AddOns\\Epithet\\icons\\ui\\epithet-ui-lock-32"
 local BINOCULARS_ICON = "Interface\\Icons\\INV_Misc_Spyglass_03"
+local ACHIEVEMENTS_LOG_ICON = "Interface\\Icons\\achievement_guildperk_mrpopularity_rank2"
 local CLASS_ICON = "Interface\\GLUES\\CHARACTERCREATE\\UI-CHARACTERCREATE-CLASSES"
+local RACE_ICON = "Interface\\GLUES\\CHARACTERCREATE\\UI-CHARACTERCREATE-RACES"
+local ACHIEVEMENT_ICON = "Interface\\Icons\\Achievement_General"
+local BODYTYPE_ICON_1 = "Interface\\GLUES\\CHARACTERCREATE\\CharacterCreate-BodyType-1"
+local BODYTYPE_ICON_2 = "Interface\\GLUES\\CHARACTERCREATE\\CharacterCreate-BodyType-2"
+local BODYTYPE_ICON_1_LEGACY = "Interface\\GLUES\\CHARACTERCREATE\\UI-CHARACTERCREATE-GENDER-BODYTYPE1"
+local BODYTYPE_ICON_2_LEGACY = "Interface\\GLUES\\CHARACTERCREATE\\UI-CHARACTERCREATE-GENDER-BODYTYPE2"
+local UNKNOWN_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
 
-local ROW_HEIGHT = 28
+local ROW_HEIGHT = 36
 local TILE_SIZE = 104
 local TILE_GAP = 10
+local ACHV_TILE_MIN = 74
+local ACHV_TILE_GAP = 10
+
+local ACHIEVEMENT_FALLBACK_ICONS = {
+    count_1 = "Interface\\Icons\\INV_Misc_Spyglass_02",
+    count_10 = "Interface\\Icons\\INV_Misc_Eye_01",
+    count_25 = "Interface\\Icons\\INV_Misc_Note_01",
+    count_50 = "Interface\\Icons\\INV_Misc_Spyglass_03",
+    count_100 = "Interface\\Icons\\Ability_Rogue_Shadowstep",
+    count_200 = "Interface\\Icons\\inv_helm_misc_pignosemask_a_01",
+    count_350 = "Interface\\Icons\\Achievement_Boss_CThun",
+    count_500 = "Interface\\Icons\\INV_Misc_Book_09",
+    count_700 = "Interface\\Icons\\Spell_Magic_PolymorphChicken",
+    roll_call = "Interface\\Icons\\INV_Misc_GroupLooking",
+    full_spectrum = "Interface\\Icons\\INV_Misc_Gem_Variety_01",
+    both_ends = "Interface\\Icons\\INV_Scroll_03",
+    grand_tour = "Interface\\Icons\\INV_Misc_Map_01",
+    title_fwends = "Interface\\Icons\\Inv_holiday_beerfestsausage04",
+    havent_we_met = "Interface\\Icons\\Inv_misc_head_scourge_01",
+    long_con = "Interface\\Icons\\Ability_Hunter_Pet_Turtle",
+    night_shift = "Interface\\Icons\\Spell_Nature_Sleep",
+    busy_day = "Interface\\Icons\\Spell_Holy_BorrowedTime",
+    capital_offence = "Interface\\Icons\\Ability_Rogue_Garrote",
+    old_money = "Interface\\Icons\\INV_Misc_Coin_02",
+    legendary_spot = "Interface\\Icons\\INV_Misc_Gem_Topaz_02",
+    potted_history = "Interface\\Icons\\INV_Misc_Flower_02",
+    diplomatic_immunity = "Interface\\Icons\\Achievement_Reputation_01",
+    small_world = "Interface\\Icons\\Achievement_Character_Gnome_Male",
+    creature_of_habit = "Interface\\Icons\\Spell_Nature_Polymorph",
+    seeing_stars = "Interface\\Icons\\Spell_Frost_Stun",
+    museum_curator = "Interface\\Icons\\Trade_Archaeology_TyrandesFavoriteDoll",
+    gnome_spotter = "Interface\\Icons\\inv_gnometoy",
+    at_least_chicken = "Interface\\Icons\\INV_Misc_Food_27",
+    certified = "Interface\\Icons\\Spell_Shadow_UnholyFrenzy",
+    overachiever = "Interface\\Icons\\Achievement_Quests_Completed_06",
+    guising = "Interface\\Icons\\INV_Misc_Bag_28_Halloween",
+    owned_1 = "Interface\\Icons\\INV_Crown_01",
+    owned_10 = "Interface\\Icons\\INV_Letter_15",
+    owned_25 = "Interface\\Icons\\INV_Misc_Ribbon_01",
+    owned_50 = "Interface\\Icons\\INV_Shield_04",
+    owned_100 = "Interface\\Icons\\Spell_Misc_EmotionHappy",
+    owned_spectrum = "Interface\\Icons\\INV_Chest_Cloth_17",
+    owned_both_ends = "Interface\\Icons\\INV_Misc_Book_07",
+    owned_legendary = "Interface\\Icons\\INV_Staff_Medivh",
+    owned_removed = "Interface\\Icons\\Trade_Archaeology",
+    impulse_purchase = "Interface\\Icons\\Ability_Warrior_Charge",
+    takes_one = "Interface\\Icons\\Spell_Nature_MirrorImage",
+    window_shopper = "Interface\\Icons\\INV_Misc_Gift_01",
+    twinsies = "Interface\\Icons\\Spell_Magic_LesserInvisibilty",
+}
+
+local function GetAchievementTileIcon(achievementID)
+    return ACHIEVEMENT_FALLBACK_ICONS[achievementID] or ACHIEVEMENT_ICON
+end
 
 local SHOUT_FORMAT_KEYS = {
     "SPOTTING_LOG_SHOUT_FMT_1",
@@ -32,6 +94,14 @@ local SHOUT_FORMAT_FALLBACKS = {
     "%d strangers have been observed. None of them noticed. Excellent.",
     "I've stalked %d unsuspecting adventurers for their titles alone!",
 }
+
+local function SecretEarnedSuffixText()
+    return (L and L["SPOT_ACHV_SECRET_EARNED_SUFFIX"]) or "(Secret)"
+end
+
+local function SecretEarnedTooltipText()
+    return (L and L["SPOT_ACHV_SECRET_EARNED_NOTE"]) or "Originally a secret achievement."
+end
 
 local staticByID = nil
 
@@ -88,10 +158,7 @@ local function BuildStaticIndex()
 end
 
 local function GetCatalogueCount()
-    if ns.TitleData and ns.TitleData.Scan then
-        ns.TitleData:Scan()
-    end
-
+    -- Scan() is dirty-flag gated; callers scan once up front (see Refresh()).
     local runtimeTotal = ns.TitleData and ns.TitleData.totalCount
     if tonumber(runtimeTotal) and runtimeTotal > 0 then
         return runtimeTotal
@@ -167,6 +234,409 @@ local function GetClassCoords(classTag)
         return nil
     end
     return coords[classTag]
+end
+
+local function NormalizeRaceTagForLookup(raceTag)
+    if raceTag == nil then
+        return nil
+    end
+
+    local text = tostring(raceTag)
+    if text == "" then
+        return nil
+    end
+
+    local squashed = text:gsub("[%s%-%']", "")
+    return squashed:lower(), squashed
+end
+
+local function NormalizeSexForLookup(sex)
+    local n = tonumber(sex)
+    if n == 2 or n == 3 then
+        return n
+    end
+    return nil
+end
+
+local function ExtractAtlasCoords(value, sex)
+    if type(value) ~= "table" then
+        return nil
+    end
+
+    local normalizedSex = NormalizeSexForLookup(sex)
+    if normalizedSex == 2 then
+        if type(value.male) == "table" then
+            local directMale = ExtractAtlasCoords(value.male, sex)
+            if directMale then
+                return directMale
+            end
+        end
+        if type(value["Male"]) == "table" then
+            local directMale = ExtractAtlasCoords(value["Male"], sex)
+            if directMale then
+                return directMale
+            end
+        end
+    elseif normalizedSex == 3 then
+        if type(value.female) == "table" then
+            local directFemale = ExtractAtlasCoords(value.female, sex)
+            if directFemale then
+                return directFemale
+            end
+        end
+        if type(value["Female"]) == "table" then
+            local directFemale = ExtractAtlasCoords(value["Female"], sex)
+            if directFemale then
+                return directFemale
+            end
+        end
+    end
+
+    if type(value[1]) == "number" and type(value[2]) == "number" and type(value[3]) == "number" and type(value[4]) == "number" then
+        return value
+    end
+
+    local byCommonKeys = {
+        value.male,
+        value.female,
+        value.normal,
+        value.default,
+        value[1],
+        value["Male"],
+        value["Female"],
+    }
+
+    for _, candidate in ipairs(byCommonKeys) do
+        local coords = ExtractAtlasCoords(candidate, sex)
+        if coords then
+            return coords
+        end
+    end
+
+    for _, candidate in pairs(value) do
+        local coords = ExtractAtlasCoords(candidate, sex)
+        if coords then
+            return coords
+        end
+    end
+
+    return nil
+end
+
+local function GetRaceCoords(raceTag, sex)
+    local coords = _G.RACE_ICON_TCOORDS
+    if not coords or not raceTag then
+        return nil
+    end
+
+    local direct = ExtractAtlasCoords(coords[raceTag], sex)
+    if direct then
+        return direct
+    end
+
+    local lower, squashed = NormalizeRaceTagForLookup(raceTag)
+    if not lower then
+        return nil
+    end
+
+    for key, value in pairs(coords) do
+        if type(key) == "string" then
+            local keyLower, keySquashed = NormalizeRaceTagForLookup(key)
+            if keyLower == lower or keySquashed == squashed then
+                local resolved = ExtractAtlasCoords(value, sex)
+                if resolved then
+                    return resolved
+                end
+            end
+        end
+    end
+
+    local alias = {
+        scourge = "Scourge",
+        undead = "Scourge",
+        dracthyr = "Dracthyr",
+        earthen = "Earthen",
+    }
+    local aliased = alias[lower]
+    if aliased then
+        local resolved = ExtractAtlasCoords(coords[aliased], sex)
+        if resolved then
+            return resolved
+        end
+    end
+
+    if lower == "forsaken" then
+        local resolved = ExtractAtlasCoords(coords.Forsaken, sex)
+        if resolved then
+            return resolved
+        end
+    end
+
+    if lower == "magharorc" then
+        local apostrophe = ExtractAtlasCoords(coords["Mag'harOrc"], sex)
+        if apostrophe then
+            return apostrophe
+        end
+    end
+
+    if lower == "magharorc" then
+        local plain = ExtractAtlasCoords(coords.MagharOrc, sex)
+        if plain then
+            return plain
+        end
+    end
+
+    if lower == "pandaren" then
+        local pandaren = ExtractAtlasCoords(coords.Pandaren, sex)
+        if pandaren then
+            return pandaren
+        end
+        local neutral = ExtractAtlasCoords(coords.PandarenNeutral, sex)
+        if neutral then
+            return neutral
+        end
+        local alliance = ExtractAtlasCoords(coords.PandarenAlliance, sex)
+        if alliance then
+            return alliance
+        end
+        local horde = ExtractAtlasCoords(coords.PandarenHorde, sex)
+        if horde then
+            return horde
+        end
+    end
+
+    return nil
+end
+
+local function FormatRaceLabel(raceTag)
+    if type(raceTag) ~= "string" or raceTag == "" then
+        return nil
+    end
+
+    local map = {
+        Scourge = "Undead",
+        HighmountainTauren = "Highmountain Tauren",
+        LightforgedDraenei = "Lightforged Draenei",
+        DarkIronDwarf = "Dark Iron Dwarf",
+        MagharOrc = "Mag'har Orc",
+        ZandalariTroll = "Zandalari Troll",
+        KulTiran = "Kul Tiran",
+        VoidElf = "Void Elf",
+        Nightborne = "Nightborne",
+        Mechagnome = "Mechagnome",
+        Dracthyr = "Dracthyr",
+        Earthen = "Earthen",
+    }
+
+    if map[raceTag] then
+        return map[raceTag]
+    end
+
+    local label = raceTag:gsub("(%l)(%u)", "%1 %2")
+    return label
+end
+
+local function BuildRaceInlineIconTag(raceTag, sex)
+    local coords = GetRaceCoords(raceTag, sex)
+    if not coords then
+        return ""
+    end
+
+    local left = math.floor((coords[1] or 0) * 256)
+    local right = math.floor((coords[2] or 1) * 256)
+    local top = math.floor((coords[3] or 0) * 256)
+    local bottom = math.floor((coords[4] or 1) * 256)
+
+    return string.format("|T%s:16:16:0:0:256:256:%d:%d:%d:%d|t ", RACE_ICON, left, right, top, bottom)
+end
+
+local RACE_ICON_FALLBACKS = {
+    human = "Interface\\Icons\\Achievement_Character_Human_Male",
+    orc = "Interface\\Icons\\Achievement_Character_Orc_Male",
+    dwarf = "Interface\\Icons\\Achievement_Character_Dwarf_Male",
+    nightelf = "Interface\\Icons\\Achievement_Character_Nightelf_Male",
+    scourge = "Interface\\Icons\\Achievement_Character_Undead_Male",
+    undead = "Interface\\Icons\\Achievement_Character_Undead_Male",
+    tauren = "Interface\\Icons\\Achievement_Character_Tauren_Male",
+    gnome = "Interface\\Icons\\Achievement_Character_Gnome_Male",
+    troll = "Interface\\Icons\\Achievement_Character_Troll_Male",
+    goblin = "Interface\\Icons\\Achievement_Character_Goblin_Male",
+    bloodelf = "Interface\\Icons\\Achievement_Character_Bloodelf_Male",
+    draenei = "Interface\\Icons\\Achievement_Character_Draenei_Male",
+    worgen = "Interface\\Icons\\Achievement_Character_Worgen_Male",
+    pandaren = "Interface\\Icons\\Achievement_Character_Pandaren_Male",
+    voidelf = "Interface\\Icons\\Achievement_Character_Voidelf_Male",
+    lightforgeddraenei = "Interface\\Icons\\Achievement_Character_Lightforgeddraenei_Male",
+    highmountaintauren = "Interface\\Icons\\Achievement_Character_Highmountaintauren_Male",
+    nightborne = "Interface\\Icons\\Achievement_Character_Nightborne_Male",
+    magharorc = "Interface\\Icons\\Achievement_Character_Orc_Male",
+    darkirondwarf = "Interface\\Icons\\Achievement_Character_Darkirondwarf_Male",
+    zandalaritroll = "Interface\\Icons\\Achievement_Character_ZandalariTroll_Male",
+    kultiran = "Interface\\Icons\\Achievement_Character_KulTiran_Male",
+    mechagnome = "Interface\\Icons\\Achievement_Character_Mechagnome_Male",
+    vulpera = "Interface\\Icons\\Achievement_Character_Vulpera_Male",
+    dracthyr = "Interface\\Icons\\Achievement_Character_Dracthyr_Male",
+    earthen = "Interface\\Icons\\Achievement_Character_Earthen_Male",
+    haranir = "Interface\\Icons\\Achievement_Character_Nightelf_Male",
+    harronir = "Interface\\Icons\\Achievement_Character_Nightelf_Male",
+}
+
+local RACE_ICON_FALLBACKS_FEMALE = {
+    human = "Interface\\Icons\\Achievement_Character_Human_Female",
+    orc = "Interface\\Icons\\Achievement_Character_Orc_Female",
+    dwarf = "Interface\\Icons\\Achievement_Character_Dwarf_Female",
+    nightelf = "Interface\\Icons\\Achievement_Character_Nightelf_Female",
+    scourge = "Interface\\Icons\\Achievement_Character_Undead_Female",
+    undead = "Interface\\Icons\\Achievement_Character_Undead_Female",
+    tauren = "Interface\\Icons\\Achievement_Character_Tauren_Female",
+    gnome = "Interface\\Icons\\Achievement_Character_Gnome_Female",
+    troll = "Interface\\Icons\\Achievement_Character_Troll_Female",
+    goblin = "Interface\\Icons\\Achievement_Character_Goblin_Female",
+    bloodelf = "Interface\\Icons\\Achievement_Character_Bloodelf_Female",
+    draenei = "Interface\\Icons\\Achievement_Character_Draenei_Female",
+    worgen = "Interface\\Icons\\Achievement_Character_Worgen_Female",
+    pandaren = "Interface\\Icons\\Achievement_Character_Pandaren_Female",
+    voidelf = "Interface\\Icons\\Achievement_Character_Voidelf_Female",
+    lightforgeddraenei = "Interface\\Icons\\Achievement_Character_Lightforgeddraenei_Female",
+    highmountaintauren = "Interface\\Icons\\Achievement_Character_Highmountaintauren_Female",
+    nightborne = "Interface\\Icons\\Achievement_Character_Nightborne_Female",
+    magharorc = "Interface\\Icons\\Achievement_Character_Orc_Female",
+    darkirondwarf = "Interface\\Icons\\Achievement_Character_Darkirondwarf_Female",
+    zandalaritroll = "Interface\\Icons\\Achievement_Character_ZandalariTroll_Female",
+    kultiran = "Interface\\Icons\\Achievement_Character_KulTiran_Female",
+    mechagnome = "Interface\\Icons\\Achievement_Character_Mechagnome_Female",
+    vulpera = "Interface\\Icons\\Achievement_Character_Vulpera_Female",
+    dracthyr = "Interface\\Icons\\Achievement_Character_Dracthyr_Female",
+    earthen = "Interface\\Icons\\Achievement_Character_Earthen_Female",
+    haranir = "Interface\\Icons\\Achievement_Character_Nightelf_Female",
+    harronir = "Interface\\Icons\\Achievement_Character_Nightelf_Female",
+}
+
+local RACE_ICON_ALIAS_TO_BASE = {
+    magharorc = "orc",
+    darkirondwarf = "dwarf",
+    highmountaintauren = "tauren",
+    zandalaritroll = "troll",
+    lightforgeddraenei = "draenei",
+    voidelf = "bloodelf",
+    nightborne = "nightelf",
+    mechagnome = "gnome",
+    kultiran = "human",
+    earthen = "dwarf",
+    haranir = "nightelf",
+    harronir = "nightelf",
+}
+
+local function TrySetTexture(texture, path)
+    if not texture or not path or path == "" then
+        return false
+    end
+
+    if texture:GetTexture() == path then
+        -- Already showing this exact texture (common on pooled rows/tiles
+        -- across refreshes) — skip the SetTexture(nil)+SetTexture() reset.
+        return true
+    end
+
+    texture:SetTexture(nil)
+    texture:SetTexture(path)
+    return texture:GetTexture() ~= nil
+end
+
+local function SetUnknownTexture(texture, blendTexture, sex)
+    local normalizedSex = NormalizeSexForLookup(sex)
+
+    if normalizedSex == 2 then
+        if not TrySetTexture(texture, BODYTYPE_ICON_1) then
+            if not TrySetTexture(texture, BODYTYPE_ICON_1_LEGACY) then
+                TrySetTexture(texture, UNKNOWN_ICON)
+            end
+        end
+        texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+        if blendTexture then blendTexture:Hide() end
+        return true
+    end
+
+    if normalizedSex == 3 then
+        if not TrySetTexture(texture, BODYTYPE_ICON_2) then
+            if not TrySetTexture(texture, BODYTYPE_ICON_2_LEGACY) then
+                TrySetTexture(texture, UNKNOWN_ICON)
+            end
+        end
+        texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+        if blendTexture then blendTexture:Hide() end
+        return true
+    end
+
+    local leftOK = TrySetTexture(texture, BODYTYPE_ICON_1) or TrySetTexture(texture, BODYTYPE_ICON_1_LEGACY)
+    if not leftOK then
+        TrySetTexture(texture, UNKNOWN_ICON)
+        texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+        if blendTexture then blendTexture:Hide() end
+        return true
+    end
+
+    texture:SetTexCoord(0.07, 0.50, 0.07, 0.93)
+    if blendTexture then
+        local rightOK = TrySetTexture(blendTexture, BODYTYPE_ICON_2) or TrySetTexture(blendTexture, BODYTYPE_ICON_2_LEGACY)
+        if rightOK then
+            blendTexture:SetTexCoord(0.50, 0.93, 0.07, 0.93)
+            blendTexture:Show()
+        else
+            blendTexture:Hide()
+        end
+    end
+
+    return true
+end
+
+local function ApplyRaceTexture(texture, blendTexture, raceTag, sex)
+    if not texture then
+        return false
+    end
+
+    if blendTexture then
+        blendTexture:Hide()
+    end
+
+    local normalizedSex = NormalizeSexForLookup(sex)
+
+    if not raceTag or raceTag == "" or not normalizedSex then
+        return SetUnknownTexture(texture, blendTexture, sex)
+    end
+
+    local coords = GetRaceCoords(raceTag, normalizedSex)
+    if coords then
+        TrySetTexture(texture, RACE_ICON)
+        texture:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
+        return true
+    end
+
+    local normalized = NormalizeRaceTagForLookup(raceTag)
+    local icon = nil
+    if normalizedSex == 3 then
+        icon = normalized and RACE_ICON_FALLBACKS_FEMALE[normalized] or nil
+    end
+    if not icon then
+        icon = normalized and RACE_ICON_FALLBACKS[normalized] or nil
+    end
+    if icon then
+        if TrySetTexture(texture, icon) then
+            texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+            return true
+        end
+
+        local baseRace = normalized and RACE_ICON_ALIAS_TO_BASE[normalized] or nil
+        if baseRace then
+            local baseIcon = (normalizedSex == 3) and RACE_ICON_FALLBACKS_FEMALE[baseRace] or RACE_ICON_FALLBACKS[baseRace]
+            if baseIcon and TrySetTexture(texture, baseIcon) then
+                texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+                return true
+            end
+        end
+    end
+
+    return SetUnknownTexture(texture, blendTexture, sex)
 end
 
 local function OpenSpottingSettings()
@@ -274,7 +744,6 @@ function LogbookUI:LoadPrefs()
     if scope ~= "spotted" and scope ~= "remaining" then
         scope = "spotted"
     end
-
     self.viewMode = view
     self.scopeMode = scope
 end
@@ -295,6 +764,7 @@ function LogbookUI:Init(mainFrame)
     self.shoutCycleIndex = 1
     self:CreateButton(mainFrame)
     self:CreatePanel(mainFrame)
+    self:CreateAchievementsPanel(mainFrame)
     self:RefreshButton()
 end
 
@@ -302,35 +772,52 @@ function LogbookUI:CreateButton(mainFrame)
     local header = mainFrame and mainFrame.Header
     if not header then return end
 
-    local button = CreateFrame("Button", nil, header)
-    button:SetPoint("TOPRIGHT", header, "TOPRIGHT", -8, -8)
-    button:SetPoint("BOTTOMRIGHT", header, "BOTTOMRIGHT", -8, 8)
-    button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    SkinEpithetButton(button)
-    button.label:SetText("")
+    local achButton = CreateFrame("Button", nil, header)
+    achButton:SetPoint("TOPRIGHT", header, "TOPRIGHT", -8, -8)
+    achButton:SetPoint("BOTTOMRIGHT", header, "BOTTOMRIGHT", -8, 8)
+    achButton:RegisterForClicks("LeftButtonUp")
+    SkinEpithetButton(achButton)
+    achButton.label:SetText("")
 
-    local function SyncSpotButtonSize()
-        local h = button:GetHeight() or 0
+    local spotButton = CreateFrame("Button", nil, header)
+    spotButton:SetPoint("TOPRIGHT", achButton, "TOPLEFT", -6, 0)
+    spotButton:SetPoint("BOTTOMRIGHT", achButton, "BOTTOMLEFT", -6, 0)
+    spotButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    SkinEpithetButton(spotButton)
+    spotButton.label:SetText("")
+
+    local function SyncHeaderButtonsSize()
+        local h = spotButton:GetHeight() or 0
         if h <= 0 and header.GetHeight then
             h = math.max(0, (header:GetHeight() or 0) - 16)
         end
         if h > 0 then
-            button:SetWidth(h)
+            spotButton:SetWidth(h)
+            achButton:SetWidth(h)
         end
     end
 
-    header:HookScript("OnSizeChanged", SyncSpotButtonSize)
-    button:HookScript("OnShow", SyncSpotButtonSize)
+    header:HookScript("OnSizeChanged", SyncHeaderButtonsSize)
+    spotButton:HookScript("OnShow", SyncHeaderButtonsSize)
+    achButton:HookScript("OnShow", SyncHeaderButtonsSize)
 
-    local icon = button:CreateTexture(nil, "ARTWORK")
-    icon:SetPoint("TOPLEFT", button, "TOPLEFT", 4, -4)
-    icon:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -4, 4)
-    icon:SetTexture(BINOCULARS_ICON)
-    icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-    icon:SetVertexColor(0.86, 0.74, 0.40, 0.95)
-    button.icon = icon
+    local spotIcon = spotButton:CreateTexture(nil, "ARTWORK")
+    spotIcon:SetPoint("TOPLEFT", spotButton, "TOPLEFT", 4, -4)
+    spotIcon:SetPoint("BOTTOMRIGHT", spotButton, "BOTTOMRIGHT", -4, 4)
+    spotIcon:SetTexture(BINOCULARS_ICON)
+    spotIcon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    spotIcon:SetVertexColor(0.86, 0.74, 0.40, 0.95)
+    spotButton.icon = spotIcon
 
-    button:SetScript("OnClick", function(_, mouseButton)
+    local achIcon = achButton:CreateTexture(nil, "ARTWORK")
+    achIcon:SetPoint("TOPLEFT", achButton, "TOPLEFT", 4, -4)
+    achIcon:SetPoint("BOTTOMRIGHT", achButton, "BOTTOMRIGHT", -4, 4)
+    achIcon:SetTexture(ACHIEVEMENTS_LOG_ICON)
+    achIcon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    achIcon:SetVertexColor(0.86, 0.74, 0.40, 0.95)
+    achButton.icon = achIcon
+
+    spotButton:SetScript("OnClick", function(_, mouseButton)
         local count = ns.SpottingLog and ns.SpottingLog.Count and ns.SpottingLog:Count() or 0
         if mouseButton == "RightButton" then
             local fmt, idx = GetShoutFormatByIndex(self.shoutCycleIndex)
@@ -343,8 +830,8 @@ function LogbookUI:CreateButton(mainFrame)
 
         self:Toggle()
     end)
-    button:SetScript("OnEnter", function(self_)
-        icon:SetVertexColor(1.0, 0.9, 0.55, 1.0)
+    spotButton:SetScript("OnEnter", function(self_)
+        spotIcon:SetVertexColor(1.0, 0.9, 0.55, 1.0)
         GameTooltip:SetOwner(self_, "ANCHOR_BOTTOMRIGHT")
         local count = ns.SpottingLog and ns.SpottingLog.Count and ns.SpottingLog:Count() or 0
         GameTooltip:SetText((L and L["SPOTTING_LOG_TOOLTIP"] and string.format(L["SPOTTING_LOG_TOOLTIP"], count)) or ("Spotting Log (" .. count .. " found)"), 1, 1, 1)
@@ -353,15 +840,31 @@ function LogbookUI:CreateButton(mainFrame)
         GameTooltip:AddLine((L and L["SPOTTING_LOG_TOOLTIP_RIGHT"]) or "Right-click: Shout your spotting stats in /s.", 0.85, 0.82, 0.72, true)
         GameTooltip:Show()
     end)
-    button:SetScript("OnLeave", function()
-        icon:SetVertexColor(0.86, 0.74, 0.40, 0.95)
+    spotButton:SetScript("OnLeave", function()
+        spotIcon:SetVertexColor(0.86, 0.74, 0.40, 0.95)
+        GameTooltip:Hide()
+    end)
+
+    achButton:SetScript("OnClick", function()
+        self:ShowAchievements()
+    end)
+    achButton:SetScript("OnEnter", function(self_)
+        achIcon:SetVertexColor(1.0, 0.9, 0.55, 1.0)
+        GameTooltip:SetOwner(self_, "ANCHOR_BOTTOMRIGHT")
+        GameTooltip:SetText((L and L["SPOT_ACHV_TOOLTIP"]) or "Open Epithet achievements.", 1, 1, 1)
+        GameTooltip:AddLine((L and L["SPOT_ACHV_TOOLTIP_LEFT"]) or "Left-click: Open achievements.", 0.85, 0.82, 0.72, true)
+        GameTooltip:Show()
+    end)
+    achButton:SetScript("OnLeave", function()
+        achIcon:SetVertexColor(0.86, 0.74, 0.40, 0.95)
         GameTooltip:Hide()
     end)
 
     -- Ensure square sizing is correct immediately on creation.
-    SyncSpotButtonSize()
+    SyncHeaderButtonsSize()
 
-    self.button = button
+    self.button = spotButton
+    self.achievementButton = achButton
 end
 
 function LogbookUI:CreateModeButton(parent, text, onClick)
@@ -513,6 +1016,9 @@ function LogbookUI:OpenImportModal()
             if ns.Print then
                 ns.Print((L and L["SPOTTING_IMPORT_SUCCESS_FMT"] and string.format(L["SPOTTING_IMPORT_SUCCESS_FMT"], changed or 0)) or ("Imported " .. tostring(changed or 0) .. " spotting entries."))
             end
+            if ns.SpottingAchievements and ns.SpottingAchievements.Evaluate then
+                ns.SpottingAchievements:Evaluate()
+            end
             modal:Hide()
             self:Refresh()
             self:RefreshButton()
@@ -567,6 +1073,7 @@ function LogbookUI:CreatePanel(mainFrame)
     local closeText = close:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     closeText:SetPoint("CENTER")
     closeText:SetText("x")
+    closeText:SetScale(2)
     closeText:SetTextColor(0.95, 0.90, 0.75)
     close:SetScript("OnClick", function() self:Hide() end)
 
@@ -619,14 +1126,44 @@ function LogbookUI:CreatePanel(mainFrame)
     end)
     exportBtn:SetPoint("RIGHT", importBtn, "LEFT", -6, 0)
 
+    local infoWrap = CreateFrame("Frame", nil, panel, "BackdropTemplate")
+    infoWrap:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -70)
+    infoWrap:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -12, -70)
+    infoWrap:SetHeight(62)
+    infoWrap:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 1,
+        insets = { left = 1, right = 1, top = 1, bottom = 1 },
+    })
+    infoWrap:SetBackdropColor(0.09, 0.07, 0.04, 0.95)
+    infoWrap:SetBackdropBorderColor(0.55, 0.45, 0.26, 0.65)
+
+    local infoTitle = infoWrap:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    infoTitle:SetPoint("TOPLEFT", infoWrap, "TOPLEFT", 10, -8)
+    infoTitle:SetPoint("TOPRIGHT", infoWrap, "TOPRIGHT", -10, -8)
+    infoTitle:SetJustifyH("LEFT")
+    infoTitle:SetText((L and L["SPOTTING_META_TITLE"]) or "Spotting Meta-Game (Completely Normal Behavior)")
+
+    local infoText = infoWrap:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    infoText:SetPoint("TOPLEFT", infoTitle, "BOTTOMLEFT", 0, -8)
+    infoText:SetPoint("TOPRIGHT", infoWrap, "TOPRIGHT", -10, 0)
+    infoText:SetJustifyH("LEFT")
+    infoText:SetJustifyV("TOP")
+    infoText:SetText((L and L["SPOTTING_META_DESC"]) or "Totally normal activity: click players, target strangers, and quietly evaluate their title choices for science. First-spot unique titles to fill your log, then chase meta achievements across rarity, classes, zones, and repeat sightings. Completionists may experience a powerful urge to inspect absolutely everyone in sight. This is expected.")
+
+    local metaTopPad, metaGap, metaBottomPad = 8, 8, 8
+    local measuredMetaHeight = math.ceil((infoTitle:GetStringHeight() or 0) + metaGap + (infoText:GetStringHeight() or 0) + metaTopPad + metaBottomPad)
+    infoWrap:SetHeight(math.max(62, measuredMetaHeight))
+
     local divider = panel:CreateTexture(nil, "BORDER")
-    divider:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -70)
-    divider:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -12, -70)
+    divider:SetPoint("TOPLEFT", infoWrap, "BOTTOMLEFT", 0, -8)
+    divider:SetPoint("TOPRIGHT", infoWrap, "BOTTOMRIGHT", 0, -8)
     divider:SetHeight(1)
     divider:SetColorTexture(0.55, 0.45, 0.26, 0.35)
 
     local contentArea = CreateFrame("Frame", nil, panel)
-    contentArea:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -76)
+    contentArea:SetPoint("TOPLEFT", divider, "BOTTOMLEFT", 0, -6)
     contentArea:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -30, 12)
 
     local listWrap = CreateFrame("Frame", nil, contentArea)
@@ -720,30 +1257,28 @@ function LogbookUI:CreatePanel(mainFrame)
 
     panel:SetScript("OnShow", function()
         self.stateWasEnabled = nil
-        self.elapsed = 0
         self:Refresh()
     end)
 
-    panel:SetScript("OnUpdate", function(_, elapsed)
-        self.elapsed = (self.elapsed or 0) + elapsed
-        if self.elapsed < 0.5 then
-            return
-        end
-        self.elapsed = 0
-
-        local enabled = ns.IsTitleSpottingEnabled and ns.IsTitleSpottingEnabled() or false
-        if self.stateWasEnabled ~= enabled then
-            self:Refresh()
+    panel:SetScript("OnHide", function()
+        if self.transferModal and self.transferModal.Hide then
+            self.transferModal:Hide()
         end
     end)
+
+    -- No OnUpdate poll for the enabled/disabled state: the only place that
+    -- toggles it (Core/Settings.lua's "Enable title spotting" checkbox)
+    -- already calls LogbookUI:HandleSpottingStateChanged() synchronously.
 
     self.panel = panel
     self.scopeSpottedBtn = spottedBtn
     self.scopeRemainingBtn = remainingBtn
+    self.viewSeparator = viewSep
     self.viewListBtn = listBtn
     self.viewGridBtn = gridBtn
     self.exportBtn = exportBtn
     self.importBtn = importBtn
+    self.metaGameInfo = infoWrap
     self.listWrap = listWrap
     self.listScroll = listScroll
     self.listContent = listContent
@@ -768,22 +1303,479 @@ end
 
 function LogbookUI:Show()
     if not self.panel then return end
+    if self.achievementPanel and self.achievementPanel:IsShown() then
+        self.achievementPanel:Hide()
+    end
     self.panel:Raise()
     self.panel:Show()
     self:Refresh()
 end
 
+function LogbookUI:ShowAchievements()
+    if not self.achievementPanel then return end
+    if self.panel and self.panel:IsShown() then
+        self.panel:Hide()
+    end
+    self.achievementPanel:Raise()
+    self.achievementPanel:Show()
+    self:RefreshAchievements()
+end
+
 function LogbookUI:Hide()
-    if not self.panel then return end
-    self.panel:Hide()
+    if self.panel then
+        self.panel:Hide()
+    end
+    if self.achievementPanel then
+        self.achievementPanel:Hide()
+    end
+end
+
+function LogbookUI:CreateAchievementsPanel(mainFrame)
+    local panel = CreateFrame("Frame", nil, mainFrame, "BackdropTemplate")
+    panel:SetPoint("TOPLEFT", mainFrame, "TOPLEFT", 10, -40)
+    panel:SetPoint("BOTTOMRIGHT", mainFrame, "BOTTOMRIGHT", -10, 10)
+    panel:SetFrameStrata("FULLSCREEN_DIALOG")
+    panel:SetFrameLevel((mainFrame:GetFrameLevel() or 1) + 200)
+    panel:EnableMouse(true)
+    panel:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 1,
+        insets = { left = 1, right = 1, top = 1, bottom = 1 },
+    })
+
+    if T and T.col then
+        panel:SetBackdropColor(T.col.bg0.r, T.col.bg0.g, T.col.bg0.b, 1.0)
+        panel:SetBackdropBorderColor(T.col.line.r, T.col.line.g, T.col.line.b, 0.8)
+    else
+        panel:SetBackdropColor(0.08, 0.06, 0.03, 1.0)
+        panel:SetBackdropBorderColor(0.55, 0.45, 0.26, 0.8)
+    end
+    panel:Hide()
+
+    local heading = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+    heading:SetPoint("TOPLEFT", 14, -12)
+    heading:SetText((L and L["SPOT_ACHV_HEADING"]) or "Epithet Achievements")
+
+    local countText = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    countText:SetPoint("TOPRIGHT", -36, -16)
+    countText:SetJustifyH("RIGHT")
+
+    local close = CreateFrame("Button", nil, panel)
+    close:SetSize(18, 18)
+    close:SetPoint("TOPRIGHT", -10, -10)
+    local closeText = close:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    closeText:SetPoint("CENTER")
+    closeText:SetText("x")
+    closeText:SetScale(2)
+    closeText:SetTextColor(0.95, 0.90, 0.75)
+    close:SetScript("OnClick", function() self:Hide() end)
+
+    local divider = panel:CreateTexture(nil, "BORDER")
+    divider:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -42)
+    divider:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -12, -42)
+    divider:SetHeight(1)
+    divider:SetColorTexture(0.55, 0.45, 0.26, 0.35)
+
+    local contentArea = CreateFrame("Frame", nil, panel)
+    contentArea:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -48)
+    contentArea:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -30, 12)
+
+    local gridScroll = CreateFrame("ScrollFrame", nil, contentArea, "UIPanelScrollFrameTemplate")
+    gridScroll:SetPoint("TOPLEFT", contentArea, "TOPLEFT", 0, 0)
+    gridScroll:SetPoint("BOTTOMRIGHT", contentArea, "BOTTOMRIGHT", 0, 0)
+    gridScroll:EnableMouseWheel(true)
+
+    local gridContent = CreateFrame("Frame", nil, gridScroll)
+    gridContent:SetPoint("TOPLEFT", gridScroll, "TOPLEFT", 0, 0)
+    gridContent:SetWidth(math.max(1, (contentArea:GetWidth() or 0) - 8))
+    gridContent:SetHeight(1)
+    gridScroll:SetScrollChild(gridContent)
+
+    contentArea:SetScript("OnSizeChanged", function(self_)
+        local width = math.max(1, (self_:GetWidth() or 0) - 8)
+        gridContent:SetWidth(width)
+        if panel:IsShown() then
+            self:RefreshAchievements()
+        end
+    end)
+
+    gridScroll:SetScript("OnMouseWheel", function(self_, delta)
+        local current = self_:GetVerticalScroll() or 0
+        local step = 32
+        local maxScroll = math.max(0, (gridContent:GetHeight() or 0) - (self_:GetHeight() or 0))
+        if delta > 0 then
+            self_:SetVerticalScroll(math.max(0, current - step))
+        else
+            self_:SetVerticalScroll(math.min(maxScroll, current + step))
+        end
+    end)
+
+    local empty = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    empty:SetPoint("CENTER", panel, "CENTER", 0, -12)
+    empty:SetPoint("LEFT", panel, "LEFT", 60, 0)
+    empty:SetPoint("RIGHT", panel, "RIGHT", -60, 0)
+    empty:SetJustifyH("CENTER")
+    empty:SetText((L and L["SPOT_ACHV_EMPTY"]) or "No achievements available.")
+    empty:Hide()
+
+    panel:SetScript("OnShow", function()
+        self:RefreshAchievements()
+    end)
+
+    panel:SetScript("OnHide", function()
+        if self.achievementDetailOverlay and self.achievementDetailOverlay.Hide then
+            self.achievementDetailOverlay:Hide()
+        end
+    end)
+
+    self:EnsureAchievementDetailOverlay()
+
+    self.achievementPanel = panel
+    self.achievementHeading = heading
+    self.achievementCountText = countText
+    self.achievementGridScroll = gridScroll
+    self.achievementGridContent = gridContent
+    self.achievementEmptyState = empty
+    self.achievementTiles = {}
+    self.achievementEntries = {}
+end
+
+function LogbookUI:EnsureAchievementDetailOverlay()
+    if self.achievementDetailOverlay then
+        return self.achievementDetailOverlay
+    end
+    if not self.achievementPanel then
+        return nil
+    end
+
+    local overlay = CreateFrame("Frame", nil, self.achievementPanel, "BackdropTemplate")
+    overlay:SetPoint("TOPLEFT", self.achievementPanel, "TOPLEFT", 24, -64)
+    overlay:SetPoint("BOTTOMRIGHT", self.achievementPanel, "BOTTOMRIGHT", -24, 24)
+    overlay:SetFrameStrata(self.achievementPanel:GetFrameStrata() or "FULLSCREEN_DIALOG")
+    overlay:SetFrameLevel((self.achievementPanel:GetFrameLevel() or 1) + 60)
+    overlay:EnableMouse(true)
+    overlay:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 1,
+        insets = { left = 1, right = 1, top = 1, bottom = 1 },
+    })
+    overlay:SetBackdropColor(0.06, 0.05, 0.03, 0.98)
+    overlay:SetBackdropBorderColor(0.55, 0.45, 0.26, 0.95)
+    overlay:Hide()
+
+    local heading = overlay:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    heading:SetPoint("TOPLEFT", 12, -10)
+    heading:SetPoint("TOPRIGHT", -12, -10)
+    heading:SetJustifyH("LEFT")
+    heading:SetText((L and L["SPOT_ACHV_DETAIL_TITLE"]) or "Achievement Details")
+
+    local bodyWrap = CreateFrame("Frame", nil, overlay, "BackdropTemplate")
+    bodyWrap:SetPoint("TOPLEFT", overlay, "TOPLEFT", 12, -36)
+    bodyWrap:SetPoint("BOTTOMRIGHT", overlay, "BOTTOMRIGHT", -32, 48)
+    bodyWrap:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 1,
+        insets = { left = 1, right = 1, top = 1, bottom = 1 },
+    })
+    bodyWrap:SetBackdropColor(0.08, 0.07, 0.05, 1.0)
+    bodyWrap:SetBackdropBorderColor(0.40, 0.34, 0.22, 0.95)
+
+    local name = bodyWrap:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    name:SetPoint("TOPLEFT", 10, -10)
+    name:SetPoint("TOPRIGHT", -10, -10)
+    name:SetJustifyH("LEFT")
+    name:SetJustifyV("TOP")
+
+    local desc = bodyWrap:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    desc:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -8)
+    desc:SetPoint("TOPRIGHT", bodyWrap, "TOPRIGHT", -10, 0)
+    desc:SetJustifyH("LEFT")
+    desc:SetJustifyV("TOP")
+
+    local status = bodyWrap:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    status:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, -10)
+    status:SetPoint("TOPRIGHT", bodyWrap, "TOPRIGHT", -10, 0)
+    status:SetJustifyH("LEFT")
+    status:SetJustifyV("TOP")
+
+    local detail = bodyWrap:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    detail:SetPoint("TOPLEFT", status, "BOTTOMLEFT", 0, -8)
+    detail:SetPoint("TOPRIGHT", bodyWrap, "TOPRIGHT", -10, 0)
+    detail:SetJustifyH("LEFT")
+    detail:SetJustifyV("TOP")
+
+    local close = CreateFrame("Button", nil, overlay)
+    close:SetSize(120, 24)
+    close:SetPoint("BOTTOMRIGHT", overlay, "BOTTOMRIGHT", -12, 12)
+    SkinEpithetButton(close)
+    close.label:SetText((L and L["SPOT_ACHV_DETAIL_CLOSE"]) or "Close")
+    close:SetScript("OnClick", function() overlay:Hide() end)
+
+    overlay.heading = heading
+    overlay.name = name
+    overlay.desc = desc
+    overlay.status = status
+    overlay.detail = detail
+
+    self.achievementDetailOverlay = overlay
+    return overlay
+end
+
+function LogbookUI:OpenAchievementDetail(data)
+    if not data then return end
+    local overlay = self:EnsureAchievementDetailOverlay()
+    if not overlay then return end
+
+    local name = data.name or ""
+    local desc = data.description or ""
+    local status = ""
+    local detail = ""
+
+    if data.masked then
+        name = (L and L["SPOT_ACHV_SECRET_NAME"]) or "???"
+        desc = (L and L["SPOT_ACHV_SECRET_DESC"]) or "Secret achievement"
+        status = (L and L["SPOT_ACHV_DETAIL_SECRET_STATUS"]) or "Earn this achievement to reveal details."
+        detail = ""
+    else
+        if data.earned and data.earnedText then
+            status = (L and L["SPOT_ACHV_EARNED_FMT"] and string.format(L["SPOT_ACHV_EARNED_FMT"], data.earnedText)) or ("Earned " .. data.earnedText)
+            if data.secret and data.secretEarned then
+                status = status .. " " .. SecretEarnedSuffixText()
+            end
+        elseif data.progressText and data.progressText ~= "" then
+            status = data.progressText
+        else
+            status = data.groupLabel or ""
+        end
+
+        if data.detailText and data.detailText ~= "" then
+            detail = data.detailText
+        elseif data.fwendsHint then
+            detail = (L and L["SPOT_ACHV_FWENDS_HINT"]) or "Counts titles you spotted for the very first time on them."
+        else
+            detail = ""
+        end
+
+        if data.secret and data.secretEarned then
+            if detail ~= "" then
+                detail = detail .. "\n\n" .. SecretEarnedTooltipText()
+            else
+                detail = SecretEarnedTooltipText()
+            end
+        end
+    end
+
+    overlay.name:SetText(name)
+    overlay.desc:SetText(desc)
+    overlay.status:SetText(status)
+    overlay.detail:SetText(detail)
+    overlay:Show()
+end
+
+function LogbookUI:AcquireAchievementTile(index)
+    local tile = self.achievementTiles[index]
+    if tile then return tile end
+
+    tile = CreateFrame("Button", nil, self.achievementGridContent, "BackdropTemplate")
+    tile:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 1,
+        insets = { left = 1, right = 1, top = 1, bottom = 1 },
+    })
+    tile:SetBackdropColor(0.11, 0.09, 0.06, 0.92)
+    tile:SetBackdropBorderColor(0.55, 0.45, 0.26, 0.55)
+
+    local state = tile:CreateTexture(nil, "ARTWORK")
+    state:SetSize(14, 14)
+    state:SetPoint("CENTER")
+    tile.state = state
+
+    local statePlate = CreateFrame("Frame", nil, tile, "BackdropTemplate")
+    statePlate:SetSize(22, 22)
+    statePlate:SetPoint("TOPLEFT", tile, "TOPLEFT", 4, -4)
+    statePlate:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 1,
+        insets = { left = 1, right = 1, top = 1, bottom = 1 },
+    })
+    statePlate:SetBackdropColor(0.02, 0.02, 0.02, 0.85)
+    statePlate:SetBackdropBorderColor(0.72, 0.58, 0.28, 0.95)
+    state:SetParent(statePlate)
+    state:SetPoint("CENTER", statePlate, "CENTER", 0, 0)
+    tile.statePlate = statePlate
+
+    local icon = tile:CreateTexture(nil, "ARTWORK")
+    icon:SetPoint("TOPLEFT", tile, "TOPLEFT", 2, -2)
+    icon:SetPoint("BOTTOMRIGHT", tile, "BOTTOMRIGHT", -2, 2)
+    icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    tile.icon = icon
+
+    local secretBadge = CreateFrame("Frame", nil, tile, "BackdropTemplate")
+    secretBadge:SetSize(22, 14)
+    secretBadge:SetPoint("TOPRIGHT", tile, "TOPRIGHT", -4, -4)
+    secretBadge:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 1,
+        insets = { left = 1, right = 1, top = 1, bottom = 1 },
+    })
+    secretBadge:SetBackdropColor(0.10, 0.08, 0.05, 0.92)
+    secretBadge:SetBackdropBorderColor(0.94, 0.80, 0.40, 0.95)
+    secretBadge:Hide()
+
+    local secretBadgeText = secretBadge:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    secretBadgeText:SetPoint("CENTER")
+    secretBadgeText:SetText("?")
+    secretBadgeText:SetTextColor(0.96, 0.88, 0.56)
+
+    tile.secretBadge = secretBadge
+
+    tile:SetScript("OnEnter", function(self_)
+        self_:SetBackdropBorderColor(0.83, 0.70, 0.36, 0.9)
+        if self_.data then
+            self:ConfigureEntryTooltip(self_, self_.data)
+        end
+    end)
+
+    tile:SetScript("OnClick", function(self_)
+        if self_.data then
+            self:OpenAchievementDetail(self_.data)
+        end
+    end)
+
+    tile:SetScript("OnLeave", function(self_)
+        self_:SetBackdropBorderColor(0.55, 0.45, 0.26, 0.55)
+        GameTooltip:Hide()
+    end)
+
+    self.achievementTiles[index] = tile
+    return tile
+end
+
+-- Shared square-tile grid math for both the achievement grid and the title
+-- grid: given the available width and tile count, how many columns fit and
+-- how big is each tile; then where does tile #index sit in that grid.
+local function ComputeGridLayout(width, count, minTileSize, gap)
+    width = math.max(1, width or 1)
+    local colsByWidth = math.max(1, math.floor((width + gap) / (minTileSize + gap)))
+    local cols = math.max(1, math.min(colsByWidth, math.max(1, count)))
+    local tileSize = (width - ((cols - 1) * gap)) / cols
+    local rows = math.max(1, math.ceil(count / cols))
+    local totalHeight = math.max(1, (rows * tileSize) + ((rows - 1) * gap))
+    return cols, tileSize, totalHeight
+end
+
+local function PositionGridTile(tile, index, cols, tileSize, gap, container)
+    tile:SetSize(tileSize, tileSize)
+    local col = (index - 1) % cols
+    local row = math.floor((index - 1) / cols)
+    local x = col * (tileSize + gap)
+    local y = row * (tileSize + gap)
+    tile:ClearAllPoints()
+    tile:SetPoint("TOPLEFT", container, "TOPLEFT", x, -y)
+end
+
+function LogbookUI:RefreshAchievementTiles(entries)
+    local cols, tileSize, totalHeight = ComputeGridLayout(
+        self.achievementGridContent:GetWidth(), #entries, ACHV_TILE_MIN, ACHV_TILE_GAP)
+    self.achievementGridContent:SetHeight(totalHeight)
+
+    for i, data in ipairs(entries) do
+        local tile = self:AcquireAchievementTile(i)
+        PositionGridTile(tile, i, cols, tileSize, ACHV_TILE_GAP, self.achievementGridContent)
+        tile:Show()
+        tile.data = data
+
+        if data.earned then
+            TrySetTexture(tile.state, CHECK_ICON)
+            tile.state:SetVertexColor(0.90, 0.74, 0.30, 1.0)
+            tile.statePlate:SetBackdropBorderColor(0.95, 0.80, 0.36, 1.0)
+            tile:SetBackdropBorderColor(0.67, 0.57, 0.30, 0.85)
+            if tile.icon.SetDesaturated then
+                tile.icon:SetDesaturated(false)
+            end
+        else
+            TrySetTexture(tile.state, LOCK_ICON)
+            tile.state:SetVertexColor(0.88, 0.84, 0.75, 1.0)
+            tile.statePlate:SetBackdropBorderColor(0.86, 0.74, 0.42, 1.0)
+            tile:SetBackdropBorderColor(0.55, 0.45, 0.26, 0.55)
+            if tile.icon.SetDesaturated then
+                tile.icon:SetDesaturated(true)
+            end
+        end
+
+        if tile.secretBadge then
+            if data.secret and data.secretEarned then
+                tile.secretBadge:Show()
+            else
+                tile.secretBadge:Hide()
+            end
+        end
+
+        if data.masked then
+            TrySetTexture(tile.state, LOCK_ICON)
+            tile.state:SetVertexColor(0.88, 0.84, 0.75, 1.0)
+            TrySetTexture(tile.icon, "Interface\\Icons\\inv_misc_questionmark")
+            tile.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+            tile.icon:SetVertexColor(0.66, 0.62, 0.55, 1.0)
+            if tile.icon.SetDesaturated then
+                tile.icon:SetDesaturated(true)
+            end
+            tile.icon:ClearAllPoints()
+            tile.icon:SetPoint("TOPLEFT", tile, "TOPLEFT", 2, -2)
+            tile.icon:SetPoint("BOTTOMRIGHT", tile, "BOTTOMRIGHT", -2, 2)
+        else
+            TrySetTexture(tile.icon, GetAchievementTileIcon(data.id))
+            tile.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+            if data.earned then
+                tile.icon:SetVertexColor(1, 1, 1, 1)
+            else
+                tile.icon:SetVertexColor(0.72, 0.72, 0.72, 0.95)
+            end
+            tile.icon:ClearAllPoints()
+            tile.icon:SetPoint("TOPLEFT", tile, "TOPLEFT", 2, -2)
+            tile.icon:SetPoint("BOTTOMRIGHT", tile, "BOTTOMRIGHT", -2, 2)
+        end
+    end
+
+    for i = #entries + 1, #self.achievementTiles do
+        self.achievementTiles[i]:Hide()
+        self.achievementTiles[i].data = nil
+    end
+end
+
+function LogbookUI:RefreshAchievements()
+    if not self.achievementPanel then return end
+
+    local entries = (ns.SpottingAchievements and ns.SpottingAchievements.GetDisplayEntries and ns.SpottingAchievements:GetDisplayEntries()) or {}
+    local earned, total = 0, #entries
+    if ns.SpottingAchievements and ns.SpottingAchievements.GetSummary then
+        earned, total = ns.SpottingAchievements:GetSummary()
+    end
+
+    if self.achievementCountText then
+        self.achievementCountText:SetText((L and L["SPOT_ACHV_COUNT_FMT"] and string.format(L["SPOT_ACHV_COUNT_FMT"], earned or 0, total or 0)) or ((earned or 0) .. " / " .. (total or 0) .. " earned"))
+    end
+
+    self.achievementEntries = entries
+    if #entries == 0 then
+        self.achievementEmptyState:Show()
+        self:RefreshAchievementTiles({})
+    else
+        self.achievementEmptyState:Hide()
+        self:RefreshAchievementTiles(entries)
+    end
 end
 
 function LogbookUI:BuildEntries(scopeMode)
     local entries = {}
 
-    if ns.TitleData and ns.TitleData.Scan then
-        ns.TitleData:Scan()
-    end
+    -- Scan() is dirty-flag gated; callers scan once up front (see Refresh()).
 
     if scopeMode == "remaining" then
         local records = (ns.TitleData and ns.TitleData.records) or {}
@@ -835,6 +1827,47 @@ function LogbookUI:BuildEntries(scopeMode)
 end
 
 function LogbookUI:ConfigureEntryTooltip(owner, data)
+    if data.entryType == "achievement" then
+        GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
+        GameTooltip:AddLine(data.name or "", 1, 1, 1)
+        if data.masked then
+            GameTooltip:AddLine((L and L["SPOT_ACHV_SECRET_DESC"]) or "Secret achievement", 0.85, 0.82, 0.72, true)
+            GameTooltip:Show()
+            return
+        end
+
+        if data.description and data.description ~= "" then
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine(data.description, 0.85, 0.82, 0.72, true)
+        end
+
+        if data.progressText and data.progressText ~= "" then
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine(data.progressText, 0.78, 0.85, 0.72, true)
+        end
+
+        if data.earned and data.earnedText then
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine((L and L["SPOT_ACHV_EARNED_FMT"] and string.format(L["SPOT_ACHV_EARNED_FMT"], data.earnedText)) or ("Earned " .. data.earnedText), 0.88, 0.86, 0.74, true)
+        end
+
+        if data.secret and data.secretEarned then
+            GameTooltip:AddLine(SecretEarnedTooltipText(), 0.96, 0.88, 0.56, true)
+        end
+
+        if data.detailText and data.detailText ~= "" then
+            GameTooltip:AddLine(data.detailText, 0.80, 0.85, 0.92, true)
+        end
+
+        if data.fwendsHint then
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine((L and L["SPOT_ACHV_FWENDS_HINT"]) or "Counts titles you spotted for the very first time on them.", 0.85, 0.82, 0.72, true)
+        end
+
+        GameTooltip:Show()
+        return
+    end
+
     local record = data.record
     local log = data.log
 
@@ -844,6 +1877,10 @@ function LogbookUI:ConfigureEntryTooltip(owner, data)
     if data.isSpotted and log then
         GameTooltip:AddLine(" ")
         GameTooltip:AddLine((L and L["SPOTTING_TOOLTIP_FIRST_FMT"] and string.format(L["SPOTTING_TOOLTIP_FIRST_FMT"], log.firstName or "?", log.firstZone or "?", BuildDateString(log.firstSeen))) or "", 0.85, 0.82, 0.72, true)
+        local raceLabel = FormatRaceLabel(log.raceTag) or ((L and L["SPOTTING_TOOLTIP_RACE_UNKNOWN"]) or "Unknown")
+        local raceIcon = BuildRaceInlineIconTag(log.raceTag, log.sex)
+        local raceText = (L and L["SPOTTING_TOOLTIP_RACE_FMT"] and string.format(L["SPOTTING_TOOLTIP_RACE_FMT"], raceLabel)) or ("Race: " .. raceLabel)
+        GameTooltip:AddLine(raceIcon .. raceText, 0.85, 0.82, 0.72, true)
         GameTooltip:AddLine((L and L["SPOTTING_TOOLTIP_COUNT_FMT"] and string.format(L["SPOTTING_TOOLTIP_COUNT_FMT"], tonumber(log.count) or 1)) or "", 0.85, 0.82, 0.72, true)
         GameTooltip:AddLine((L and L["SPOTTING_TOOLTIP_LAST_FMT"] and string.format(L["SPOTTING_TOOLTIP_LAST_FMT"], BuildDateString(log.lastSeen), log.lastName or "?")) or "", 0.85, 0.82, 0.72, true)
     else
@@ -860,7 +1897,9 @@ function LogbookUI:AcquireRow(index)
 
     row = CreateFrame("Button", nil, self.listContent)
     row:SetHeight(ROW_HEIGHT)
-    row:SetPoint("LEFT", self.listContent, "LEFT", 0, 0)
+    -- Slot position depends only on index, never on the data bound to it, so
+    -- it only needs to be set once here rather than re-anchored every Refresh.
+    row:SetPoint("TOPLEFT", self.listContent, "TOPLEFT", 0, -((index - 1) * ROW_HEIGHT))
     row:SetPoint("RIGHT", self.listContent, "RIGHT", 0, 0)
 
     local bg = row:CreateTexture(nil, "BACKGROUND")
@@ -874,14 +1913,26 @@ function LogbookUI:AcquireRow(index)
     row.state = state
 
     local portrait = row:CreateTexture(nil, "ARTWORK")
-    portrait:SetSize(16, 16)
+    portrait:SetSize(26, 26)
     portrait:SetPoint("LEFT", state, "RIGHT", 6, 0)
     portrait:SetTexture(CLASS_ICON)
     portrait:Hide()
     row.portrait = portrait
 
+    local race = row:CreateTexture(nil, "ARTWORK")
+    race:SetSize(26, 26)
+    race:SetPoint("LEFT", portrait, "RIGHT", 4, 0)
+    race:SetTexture(RACE_ICON)
+    race:Hide()
+    row.race = race
+
+    local raceBlend = row:CreateTexture(nil, "OVERLAY")
+    raceBlend:SetAllPoints(race)
+    raceBlend:Hide()
+    row.raceBlend = raceBlend
+
     local title = row:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    title:SetPoint("LEFT", portrait, "RIGHT", 6, 0)
+    title:SetPoint("LEFT", race, "RIGHT", 6, 0)
     title:SetPoint("RIGHT", row, "RIGHT", -230, 0)
     title:SetJustifyH("LEFT")
     row.title = title
@@ -914,39 +1965,87 @@ function LogbookUI:RefreshRows(entries)
 
     for i, data in ipairs(entries) do
         local row = self:AcquireRow(i)
-        row:ClearAllPoints()
-        row:SetPoint("TOPLEFT", self.listContent, "TOPLEFT", 0, -((i - 1) * ROW_HEIGHT))
-        row:SetPoint("RIGHT", self.listContent, "RIGHT", 0, 0)
         row:Show()
         row.data = data
 
-        local r, g, b = GetRarityColour(data.record.q)
-        row.title:SetText(data.record.text or "")
-        row.title:SetTextColor(r, g, b)
-
-        if data.isSpotted then
-            row.state:SetTexture(CHECK_ICON)
-            row.state:SetVertexColor(0.90, 0.74, 0.30, 1.0)
-            local classCoords = GetClassCoords(data.log and data.log.classTag)
-            if classCoords then
-                row.portrait:SetTexCoord(classCoords[1], classCoords[2], classCoords[3], classCoords[4])
-                row.portrait:Show()
+        if data.entryType == "achievement" then
+            if data.earned then
+                TrySetTexture(row.state, CHECK_ICON)
+                row.state:SetVertexColor(0.90, 0.74, 0.30, 1.0)
             else
-                row.portrait:Hide()
+                TrySetTexture(row.state, LOCK_ICON)
+                row.state:SetVertexColor(0.56, 0.52, 0.45, 1.0)
             end
 
-            local source = data.record.kind or data.record.cat or ""
-            local seen = BuildDateString(data.log and data.log.firstSeen)
-            local playerName = data.log and (data.log.lastName or data.log.firstName) or nil
-            local tail = playerName and (seen .. " - " .. playerName) or seen
-            row.meta:SetText((source ~= "" and (source .. " - " .. tail)) or tail)
-        else
-            row.state:SetTexture(LOCK_ICON)
-            row.state:SetVertexColor(0.56, 0.52, 0.45, 1.0)
-            row.portrait:Hide()
+            if data.masked then
+                TrySetTexture(row.state, LOCK_ICON)
+                row.state:SetVertexColor(0.56, 0.52, 0.45, 1.0)
+                row.portrait:Hide()
+                row.race:Hide()
+                if row.raceBlend then row.raceBlend:Hide() end
+                row.title:SetText((L and L["SPOT_ACHV_SECRET_NAME"]) or "???")
+                row.title:SetTextColor(0.70, 0.66, 0.58)
+                row.meta:SetText("")
+            else
+                TrySetTexture(row.portrait, ACHIEVEMENT_ICON)
+                row.portrait:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+                row.portrait:Show()
+                row.race:Hide()
+                if row.raceBlend then row.raceBlend:Hide() end
+                row.title:SetText(data.name or "")
+                if data.earned then
+                    row.title:SetTextColor(0.96, 0.88, 0.62)
+                else
+                    row.title:SetTextColor(0.84, 0.80, 0.71)
+                end
 
-            local source = data.record.kind or data.record.cat or ""
-            row.meta:SetText((source ~= "" and source) or ((L and L["SPOTTING_NOT_SPOTTED_YET"]) or "Not spotted yet"))
+                local right = data.groupLabel or ""
+                if data.earned and data.earnedText then
+                    right = (L and L["SPOT_ACHV_EARNED_FMT"] and string.format(L["SPOT_ACHV_EARNED_FMT"], data.earnedText)) or ("Earned " .. data.earnedText)
+                elseif data.progressText and data.progressText ~= "" then
+                    right = data.progressText
+                end
+                row.meta:SetText(right)
+            end
+
+        else
+            local r, g, b = GetRarityColour(data.record.q)
+            row.title:SetText(data.record.text or "")
+            row.title:SetTextColor(r, g, b)
+
+            if data.isSpotted then
+                TrySetTexture(row.state, CHECK_ICON)
+                row.state:SetVertexColor(0.90, 0.74, 0.30, 1.0)
+                local classCoords = GetClassCoords(data.log and data.log.classTag)
+                if classCoords then
+                    row.portrait:SetTexCoord(classCoords[1], classCoords[2], classCoords[3], classCoords[4])
+                    row.portrait:Show()
+                else
+                    row.portrait:Hide()
+                end
+
+                if ApplyRaceTexture(row.race, row.raceBlend, data.log and data.log.raceTag, data.log and data.log.sex) then
+                    row.race:Show()
+                else
+                    row.race:Hide()
+                    if row.raceBlend then row.raceBlend:Hide() end
+                end
+
+                local source = data.record.kind or data.record.cat or ""
+                local seen = BuildDateString(data.log and data.log.firstSeen)
+                local playerName = data.log and (data.log.lastName or data.log.firstName) or nil
+                local tail = playerName and (seen .. " - " .. playerName) or seen
+                row.meta:SetText((source ~= "" and (source .. " - " .. tail)) or tail)
+            else
+                TrySetTexture(row.state, LOCK_ICON)
+                row.state:SetVertexColor(0.56, 0.52, 0.45, 1.0)
+                row.portrait:Hide()
+                row.race:Hide()
+                if row.raceBlend then row.raceBlend:Hide() end
+
+                local source = data.record.kind or data.record.cat or ""
+                row.meta:SetText((source ~= "" and source) or ((L and L["SPOTTING_NOT_SPOTTED_YET"]) or "Not spotted yet"))
+            end
         end
     end
 
@@ -975,16 +2074,28 @@ function LogbookUI:AcquireTile(index)
     state:SetPoint("TOPLEFT", 6, -6)
     tile.state = state
 
+    local race = tile:CreateTexture(nil, "ARTWORK")
+    race:SetSize(26, 26)
+    race:SetPoint("TOPRIGHT", -6, -6)
+    race:SetTexture(RACE_ICON)
+    race:Hide()
+    tile.race = race
+
+    local raceBlend = tile:CreateTexture(nil, "OVERLAY")
+    raceBlend:SetAllPoints(race)
+    raceBlend:Hide()
+    tile.raceBlend = raceBlend
+
     local portrait = tile:CreateTexture(nil, "ARTWORK")
-    portrait:SetSize(16, 16)
-    portrait:SetPoint("TOPRIGHT", -6, -6)
+    portrait:SetSize(26, 26)
+    portrait:SetPoint("TOPRIGHT", race, "TOPLEFT", -2, 0)
     portrait:SetTexture(CLASS_ICON)
     portrait:Hide()
     tile.portrait = portrait
 
     local title = tile:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    title:SetPoint("TOPLEFT", tile, "TOPLEFT", 8, -26)
-    title:SetPoint("TOPRIGHT", tile, "TOPRIGHT", -8, -26)
+    title:SetPoint("TOPLEFT", tile, "TOPLEFT", 8, -40)
+    title:SetPoint("TOPRIGHT", tile, "TOPRIGHT", -8, -40)
     title:SetPoint("BOTTOM", tile, "BOTTOM", 0, 26)
     title:SetJustifyH("CENTER")
     title:SetJustifyV("MIDDLE")
@@ -1015,23 +2126,13 @@ function LogbookUI:AcquireTile(index)
 end
 
 function LogbookUI:RefreshTiles(entries)
-    local width = math.max(1, self.gridContent:GetWidth() or 1)
-    local cols = math.max(1, math.floor((width + TILE_GAP) / (TILE_SIZE + TILE_GAP)))
-    local rows = math.max(1, math.ceil(#entries / cols))
-    local totalHeight = (rows * TILE_SIZE) + ((rows - 1) * TILE_GAP)
-    self.gridContent:SetHeight(math.max(1, totalHeight))
+    local cols, tileSize, totalHeight = ComputeGridLayout(
+        self.gridContent:GetWidth(), #entries, TILE_SIZE, TILE_GAP)
+    self.gridContent:SetHeight(totalHeight)
 
     for i, data in ipairs(entries) do
         local tile = self:AcquireTile(i)
-        tile:SetSize(TILE_SIZE, TILE_SIZE)
-
-        local col = (i - 1) % cols
-        local row = math.floor((i - 1) / cols)
-        local x = col * (TILE_SIZE + TILE_GAP)
-        local y = row * (TILE_SIZE + TILE_GAP)
-
-        tile:ClearAllPoints()
-        tile:SetPoint("TOPLEFT", self.gridContent, "TOPLEFT", x, -y)
+        PositionGridTile(tile, i, cols, tileSize, TILE_GAP, self.gridContent)
         tile:Show()
         tile.data = data
 
@@ -1040,7 +2141,7 @@ function LogbookUI:RefreshTiles(entries)
         tile.title:SetTextColor(r, g, b)
 
         if data.isSpotted then
-            tile.state:SetTexture(CHECK_ICON)
+            TrySetTexture(tile.state, CHECK_ICON)
             tile.state:SetVertexColor(0.90, 0.74, 0.30, 1.0)
             local classCoords = GetClassCoords(data.log and data.log.classTag)
             if classCoords then
@@ -1049,11 +2150,20 @@ function LogbookUI:RefreshTiles(entries)
             else
                 tile.portrait:Hide()
             end
+
+            if ApplyRaceTexture(tile.race, tile.raceBlend, data.log and data.log.raceTag, data.log and data.log.sex) then
+                tile.race:Show()
+            else
+                tile.race:Hide()
+                if tile.raceBlend then tile.raceBlend:Hide() end
+            end
             tile.meta:SetText(BuildDateString(data.log and data.log.firstSeen))
         else
-            tile.state:SetTexture(LOCK_ICON)
+            TrySetTexture(tile.state, LOCK_ICON)
             tile.state:SetVertexColor(0.56, 0.52, 0.45, 1.0)
             tile.portrait:Hide()
+            tile.race:Hide()
+            if tile.raceBlend then tile.raceBlend:Hide() end
             tile.meta:SetText((L and L["SPOTTING_NOT_SPOTTED"]) or "Remaining")
         end
     end
@@ -1084,9 +2194,16 @@ function LogbookUI:Refresh()
 
     self:RefreshButton()
     self:RefreshModeButtons()
+    if self.heading then
+        self.heading:SetText((L and L["SPOTTING_LOG_HEADING"]) or "Spotting Log")
+    end
 
     local enabled = ns.IsTitleSpottingEnabled and ns.IsTitleSpottingEnabled() or false
     self.stateWasEnabled = enabled
+
+    if ns.TitleData and ns.TitleData.Scan then
+        ns.TitleData:Scan()
+    end
 
     local spottedCount = ns.SpottingLog and ns.SpottingLog.Count and ns.SpottingLog:Count() or 0
     local totalCatalogue = GetCatalogueCount()
@@ -1101,6 +2218,9 @@ function LogbookUI:Refresh()
 
     if not enabled then
         self.gatedState:Show()
+        if self.metaGameInfo then
+            self.metaGameInfo:Hide()
+        end
         self.listWrap:Hide()
         self.gridWrap:Hide()
         self.emptyState:Hide()
@@ -1108,6 +2228,13 @@ function LogbookUI:Refresh()
     end
 
     self.gatedState:Hide()
+    if self.metaGameInfo then
+        if self.scopeMode == "spotted" then
+            self.metaGameInfo:Show()
+        else
+            self.metaGameInfo:Hide()
+        end
+    end
     self.entries = self:BuildEntries(self.scopeMode)
 
     if #self.entries == 0 then
@@ -1138,6 +2265,8 @@ end
 function LogbookUI:OnLogUpdated()
     if self.panel and self.panel:IsShown() then
         self:Refresh()
+    elseif self.achievementPanel and self.achievementPanel:IsShown() then
+        self:RefreshAchievements()
     else
         self:RefreshButton()
     end
