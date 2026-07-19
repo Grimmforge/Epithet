@@ -59,7 +59,9 @@ Epithet/
 │   └── LogbookUI.lua        # Spotting log and achievements UI
 ├── WhatsNew/
 │   ├── Content.lua          # What's New content registry
-│   └── Versions/            # Per-version What's New content
+│   └── Versions/
+│       ├── v1_2_0.lua       # Content for a single version's popup
+│       └── v1_2_0/          # That version's own dedicated art (banners, screenshots)
 ├── data/
 │   ├── TitlesDB.lua         # Bundled static title database
 │   └── schema.json          # Data schema

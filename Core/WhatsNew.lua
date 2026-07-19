@@ -47,7 +47,7 @@ local function BuildHTMLFromBody(body)
         elseif h1 then
             html[#html + 1] = "<h1>" .. RenderInline(h1) .. "</h1>"
         elseif line:match("^%s*$") then
-            html[#html + 1] = "<p> </p>"
+            html[#html + 1] = "<p>&nbsp;</p>"
         else
             html[#html + 1] = "<p>" .. RenderInline(line) .. "</p>"
         end

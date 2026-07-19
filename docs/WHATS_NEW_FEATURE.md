@@ -25,6 +25,16 @@ Per-version content:
 
 - WhatsNew/Versions/v1_1_1.lua
 
+Per-version art (optional):
+
+- WhatsNew/Versions/v1_1_1/
+  - A folder alongside the matching `.lua` file, for art that is specific to that
+    version's changelog only (a feature banner, a one-off screenshot). It is not
+    listed in `Epithet.toc` — texture files are referenced by path at runtime and
+    don't need a load-order entry, unlike `.lua`/`.xml` files.
+  - Brand assets reused elsewhere in the addon (e.g. the wax-seal mark) should
+    stay in `icons/logo/` rather than being duplicated here.
+
 Addon packaging/load order:
 
 - Epithet.toc
@@ -122,8 +132,10 @@ This prevents nil-call errors and keeps scroll sizing usable across client varia
 
 1. Create a new file in WhatsNew/Versions, for example v1_1_2.lua
 2. Register ns.WhatsNewContent.versions[1.1.2] with title, body, and hasNew
-3. Add the new file to Epithet.toc under the What’s New content section
-4. Bump addon version metadata in Epithet.toc
+3. If that version needs its own art, add it under a sibling WhatsNew/Versions/v1_1_2/
+   folder and reference it from the body with an image line — no toc entry needed
+4. Add the new .lua file to Epithet.toc under the What’s New content section
+5. Bump addon version metadata in Epithet.toc
 
 ## Operational notes
 
