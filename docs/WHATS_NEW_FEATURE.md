@@ -23,7 +23,7 @@ Content registry:
 
 Per-version content:
 
-- WhatsNew/versions/v1_1_1.lua
+- WhatsNew/Versions/v1_1_1.lua
 
 Addon packaging/load order:
 
@@ -120,7 +120,7 @@ This prevents nil-call errors and keeps scroll sizing usable across client varia
 
 ## How to add a new release entry
 
-1. Create a new file in WhatsNew/versions, for example v1_1_2.lua
+1. Create a new file in WhatsNew/Versions, for example v1_1_2.lua
 2. Register ns.WhatsNewContent.versions[1.1.2] with title, body, and hasNew
 3. Add the new file to Epithet.toc under the What’s New content section
 4. Bump addon version metadata in Epithet.toc

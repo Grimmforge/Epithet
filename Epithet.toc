@@ -21,13 +21,13 @@ Locales\enGB.lua
 # Bundled Data
 data\TitlesDB.lua
 WhatsNew\Content.lua
-WhatsNew\versions\v1_2_0.lua
+WhatsNew\Versions\v1_2_0.lua
 
 # Core
 Core\Theme.lua
-Core\Layouts.lua
-Core\layouts\classic.lua
-Core\layouts\portrait.lua
+Core\SocialLayouts.lua
+Core\SocialLayouts\classic.lua
+Core\SocialLayouts\portrait.lua
 Core\TitleData.lua
 Core\Filters.lua
 Core\Settings.lua

@@ -1,6 +1,6 @@
 -- =============================================================================
 -- Epithet — Social Layouts Registry
--- Shared layout assets and dispatchers. Individual layouts register from Core/layouts/*.lua.
+-- Shared layout assets and dispatchers. Individual layouts register from Core/SocialLayouts/*.lua.
 -- =============================================================================
 local _, ns = ...
 
@@ -233,5 +233,5 @@ function Layouts:SetTargetPillPlaceholder(frame)
     end
 end
 
--- Core/layouts/classic.lua and Core/layouts/portrait.lua register themselves
+-- Core/SocialLayouts/classic.lua and Core/SocialLayouts/portrait.lua register themselves
 -- when they load (toc order places them right after this file).
