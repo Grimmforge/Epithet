@@ -17,7 +17,7 @@ Every title-bearer you walk past (and click on) now gets quietly stored away on 
 
 * First spotted, last spotted, and how many times you've clocked it since.
 * Where you saw it, who was wearing it, and what class and rarity it is.
-* Oddly, not necessary details of what class and race you first saw waring it, totally necessary.
+* Oddly, not necessary details of what class and race you first saw wearing it, totally necessary.
 * Bump into the same title again later and the count just ticks up in the background, quietly. No judgement. Okay, some judgement.
 
 
