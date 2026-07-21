@@ -39,6 +39,8 @@ local DB_DEFAULTS = {
             previewFunnyTitle = false,
             spotNotify = true,
             achievementNotify = true,
+            achievementNotifyMode = "full",
+            achievementAlertAnchor = "uiparent",
             spotLogScope = "spotted",
             spotLogView = "grid",
             hideInCombat = false,
@@ -96,7 +98,19 @@ function Epithet:OnInitialize()
     s.fadeDuration = fadeSeconds
     s.previewFunnyTitle = (s.previewFunnyTitle == true)
     s.spotNotify = (s.spotNotify ~= false)
-    s.achievementNotify = (s.achievementNotify ~= false)
+    local mode = s.achievementNotifyMode
+    if mode ~= "full" and mode ~= "silent" and mode ~= "off" then
+        if s.achievementNotify == false then
+            mode = "off"
+        else
+            mode = "full"
+        end
+    end
+    s.achievementNotifyMode = mode
+    s.achievementNotify = (mode ~= "off")
+    if s.achievementAlertAnchor ~= "uiparent" and s.achievementAlertAnchor ~= "alertframe" then
+        s.achievementAlertAnchor = "uiparent"
+    end
     if s.spotLogScope ~= "spotted" and s.spotLogScope ~= "remaining" then
         s.spotLogScope = "spotted"
     end
@@ -255,6 +269,29 @@ end
 -- ---------------------------------------------------------------------------
 function Epithet:HandleSlash(input)
     local cmd = input and input:trim():lower() or ""
+    local adminArgs = cmd:match("^admin%s*(.-)%s*$")
+    if adminArgs then
+        local admin = ns.AdminCommands
+        if admin and type(admin.HandleSlash) == "function" then
+            local ok, handled, message = pcall(admin.HandleSlash, admin, adminArgs, Print)
+            if not ok then
+                Print("Admin command failed: " .. tostring(handled))
+                return
+            end
+            if handled then
+                if message and message ~= "" then
+                    Print(message)
+                end
+                return
+            end
+            Print("Unknown admin command. Try /epithet admin achievement")
+            return
+        end
+
+        Print("Admin commands are not available in this build.")
+        return
+    end
+
     if cmd == "minimap" then
         local hide = not self.db.profile.minimap.hide
         self.db.profile.minimap.hide = hide

@@ -36,30 +36,57 @@ local ACHIEVEMENT_FALLBACK_ICONS = {
     count_200 = "Interface\\Icons\\inv_helm_misc_pignosemask_a_01",
     count_350 = "Interface\\Icons\\Achievement_Boss_CThun",
     count_500 = "Interface\\Icons\\INV_Misc_Book_09",
-    count_700 = "Interface\\Icons\\Spell_Magic_PolymorphChicken",
-    roll_call = "Interface\\Icons\\INV_Misc_GroupLooking",
+    count_700 = "Interface\\Icons\\Inv_Box_BirdCage_01",
+    roll_call = "Interface\\Icons\\Achievement_pvp_p_10",
     full_spectrum = "Interface\\Icons\\INV_Misc_Gem_Variety_01",
     both_ends = "Interface\\Icons\\INV_Scroll_03",
     grand_tour = "Interface\\Icons\\INV_Misc_Map_01",
-    title_fwends = "Interface\\Icons\\Inv_holiday_beerfestsausage04",
-    havent_we_met = "Interface\\Icons\\Inv_misc_head_scourge_01",
+    title_fwends = "Interface\\Icons\\Achievement_WorldEvent_Valentine",
+    havent_we_met = "Interface\\Icons\\Ability_priest_focusedwill",
     long_con = "Interface\\Icons\\Ability_Hunter_Pet_Turtle",
-    night_shift = "Interface\\Icons\\Spell_Nature_Sleep",
+    night_shift = "Interface\\Icons\\Spell_Holy_ElunesGrace",
     busy_day = "Interface\\Icons\\Spell_Holy_BorrowedTime",
-    capital_offence = "Interface\\Icons\\Ability_Rogue_Garrote",
+    capital_offence = "Interface\\Icons\\Inv_jewelcrafting_gem_02",
     old_money = "Interface\\Icons\\INV_Misc_Coin_02",
     legendary_spot = "Interface\\Icons\\INV_Misc_Gem_Topaz_02",
     potted_history = "Interface\\Icons\\INV_Misc_Flower_02",
     diplomatic_immunity = "Interface\\Icons\\Achievement_Reputation_01",
     small_world = "Interface\\Icons\\Achievement_Character_Gnome_Male",
-    creature_of_habit = "Interface\\Icons\\Spell_Nature_Polymorph",
-    seeing_stars = "Interface\\Icons\\Spell_Frost_Stun",
-    museum_curator = "Interface\\Icons\\Trade_Archaeology_TyrandesFavoriteDoll",
-    gnome_spotter = "Interface\\Icons\\inv_gnometoy",
-    at_least_chicken = "Interface\\Icons\\INV_Misc_Food_27",
+    creature_of_habit = "Interface\\Icons\\Spell_Nature_Polymorph_Cow",
+    seeing_stars = "Interface\\Icons\\Achievement_general_classact",
+    museum_curator = "Interface\\Icons\\Trade_archaeology_tinydinosaurskeleton",
+    gnome_spotter = "Interface\\Icons\\Ability_mount_mechastrider",
+    at_least_chicken = "Interface\\Icons\\Spell_Magic_PolymorphChicken",
     certified = "Interface\\Icons\\Spell_Shadow_UnholyFrenzy",
     overachiever = "Interface\\Icons\\Achievement_Quests_Completed_06",
     guising = "Interface\\Icons\\INV_Misc_Bag_28_Halloween",
+    quite_a_mouthful = "Interface\\Icons\\Ability_mage_burnout",
+    terse = "Interface\\Icons\\INV_Misc_Note_05",
+    lord_of_lords = "Interface\\Icons\\Achievement_Boss_LichKing",
+    masterclass = "Interface\\Icons\\Achievement_bg_most_damage_killingblow_dieleast",
+    slay = "Interface\\Icons\\INV_Sword_27",
+    gladiator_groupie = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_01",
+    raid_spectator = "Interface\\Icons\\INV_Misc_Head_Dragon_01",
+    brown_noser = "Interface\\Icons\\Achievement_Reputation_03",
+    how_its_made = "Interface\\Icons\\Trade_Engineering",
+    people_watcher = "Interface\\Icons\\Achievement_halloween_smiley_01",
+    professional_lurker = "Interface\\Icons\\Ability_Ambush",
+    double_take = "Interface\\Icons\\Spell_nature_invisibilty",
+    early_bird = "Interface\\Icons\\INV_Egg_05",
+    weekend_warrior = "Interface\\Icons\\Ability_Warrior_OffensiveStance",
+    full_week = "Interface\\Icons\\INV_Misc_PocketWatch_02",
+    year_in_field = "Interface\\Icons\\INV_Misc_Book_02",
+    welcome_back = "Interface\\Icons\\Spell_Holy_Resurrection",
+    feast_your_eyes = "Interface\\Icons\\INV_Holiday_Christmas_Present_01",
+    participation_award = "Interface\\Icons\\INV_Misc_Coin_16",
+    sneaky_beaky = "Interface\\Icons\\Ability_Stealth",
+    dead_man_walking = "Interface\\Icons\\Spell_Deathknight_ClassIcon",
+    old_school = "Interface\\Icons\\Achievement_Zone_Barrens_01",
+    popular = "Interface\\Icons\\Spell_shadow_improvedvampiricembrace",
+    restraining_order = "Interface\\Icons\\INV_Misc_Note_03",
+    beyond_the_grave = "Interface\\Icons\\Achievement_halloween_ghost_01",
+    know_thy_enemy = "Interface\\Icons\\INV_BannerPVP_01",
+    secret_keeper = "Interface\\Icons\\INV_Misc_Key_03",
     owned_1 = "Interface\\Icons\\INV_Crown_01",
     owned_10 = "Interface\\Icons\\INV_Letter_15",
     owned_25 = "Interface\\Icons\\INV_Misc_Ribbon_01",
@@ -69,7 +96,11 @@ local ACHIEVEMENT_FALLBACK_ICONS = {
     owned_both_ends = "Interface\\Icons\\INV_Misc_Book_07",
     owned_legendary = "Interface\\Icons\\INV_Staff_Medivh",
     owned_removed = "Interface\\Icons\\Trade_Archaeology",
-    impulse_purchase = "Interface\\Icons\\Ability_Warrior_Charge",
+    impulse_purchase = "Interface\\Icons\\Achievement_guildperk_bartering",
+    curriculum_vitae = "Interface\\Icons\\INV_Scroll_11",
+    decorated_veteran = "Interface\\Icons\\INV_Jewelry_TrinketPVP_02",
+    nothing_new = "Interface\\Icons\\Spell_Holy_SearingLight",
+    matching_set = "Interface\\Icons\\INV_Misc_Gem_Variety_02",
     takes_one = "Interface\\Icons\\Spell_Nature_MirrorImage",
     window_shopper = "Interface\\Icons\\INV_Misc_Gift_01",
     twinsies = "Interface\\Icons\\Spell_Magic_LesserInvisibilty",
@@ -78,6 +109,10 @@ local ACHIEVEMENT_FALLBACK_ICONS = {
 local function GetAchievementTileIcon(achievementID)
     return ACHIEVEMENT_FALLBACK_ICONS[achievementID] or ACHIEVEMENT_ICON
 end
+
+-- Shared with Spotting/Achievements.lua so the earned-achievement popup shows
+-- the same per-achievement icon as the Logbook tile instead of a placeholder.
+ns.SpottingAchievementIcon = GetAchievementTileIcon
 
 local SHOUT_FORMAT_KEYS = {
     "SPOTTING_LOG_SHOUT_FMT_1",
@@ -737,6 +772,7 @@ function LogbookUI:LoadPrefs()
     local social = GetSocialProfile()
     local view = social and social.spotLogView or "grid"
     local scope = social and social.spotLogScope or "spotted"
+    local achvFilter = social and social.spotAchvFilter or "all"
 
     if view ~= "list" and view ~= "grid" then
         view = "grid"
@@ -744,8 +780,12 @@ function LogbookUI:LoadPrefs()
     if scope ~= "spotted" and scope ~= "remaining" then
         scope = "spotted"
     end
+    if achvFilter ~= "all" and achvFilter ~= "unearned" then
+        achvFilter = "all"
+    end
     self.viewMode = view
     self.scopeMode = scope
+    self.achievementFilterMode = achvFilter
 end
 
 function LogbookUI:SavePrefs()
@@ -753,6 +793,7 @@ function LogbookUI:SavePrefs()
     if not social then return end
     social.spotLogView = self.viewMode or "list"
     social.spotLogScope = self.scopeMode or "spotted"
+    social.spotAchvFilter = self.achievementFilterMode or "all"
 end
 
 function LogbookUI:Init(mainFrame)
@@ -1371,14 +1412,71 @@ function LogbookUI:CreateAchievementsPanel(mainFrame)
     closeText:SetTextColor(0.95, 0.90, 0.75)
     close:SetScript("OnClick", function() self:Hide() end)
 
+    local controlsRow = CreateFrame("Frame", nil, panel)
+    controlsRow:SetPoint("TOPLEFT", panel, "TOPLEFT", 14, -42)
+    controlsRow:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -12, -42)
+    controlsRow:SetHeight(24)
+
+    local allBtn = self:CreateModeButton(controlsRow, (L and L["STATUS_ALL"]) or "All", function()
+        self.achievementFilterMode = "all"
+        self:SavePrefs()
+        self:RefreshAchievements()
+    end)
+    allBtn:SetSize(72, 22)
+    allBtn:SetPoint("LEFT", controlsRow, "LEFT", 0, 0)
+
+    local unearnedBtn = self:CreateModeButton(controlsRow, (L and L["STATUS_UNEARNED"]) or "Unearned", function()
+        self.achievementFilterMode = "unearned"
+        self:SavePrefs()
+        self:RefreshAchievements()
+    end)
+    unearnedBtn:SetSize(88, 22)
+    unearnedBtn:SetPoint("LEFT", allBtn, "RIGHT", 6, 0)
+
     local divider = panel:CreateTexture(nil, "BORDER")
-    divider:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -42)
-    divider:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -12, -42)
+    divider:SetPoint("TOPLEFT", controlsRow, "BOTTOMLEFT", -2, -8)
+    divider:SetPoint("TOPRIGHT", controlsRow, "BOTTOMRIGHT", 2, -8)
     divider:SetHeight(1)
     divider:SetColorTexture(0.55, 0.45, 0.26, 0.35)
 
+    local metaWrap = CreateFrame("Frame", nil, panel, "BackdropTemplate")
+    metaWrap:SetPoint("TOPLEFT", divider, "BOTTOMLEFT", 0, -8)
+    metaWrap:SetPoint("TOPRIGHT", divider, "BOTTOMRIGHT", 0, -8)
+    metaWrap:SetHeight(58)
+    metaWrap:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 1,
+        insets = { left = 1, right = 1, top = 1, bottom = 1 },
+    })
+    metaWrap:SetBackdropColor(0.09, 0.07, 0.04, 0.95)
+    metaWrap:SetBackdropBorderColor(0.55, 0.45, 0.26, 0.65)
+
+    local metaTitle = metaWrap:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    metaTitle:SetPoint("TOPLEFT", metaWrap, "TOPLEFT", 10, -8)
+    metaTitle:SetPoint("TOPRIGHT", metaWrap, "TOPRIGHT", -10, -8)
+    metaTitle:SetJustifyH("LEFT")
+    metaTitle:SetText((L and L["SPOT_ACHV_META_TITLE"]) or "Achievement Hunting Notes")
+
+    local metaText = metaWrap:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    metaText:SetPoint("TOPLEFT", metaTitle, "BOTTOMLEFT", 0, -8)
+    metaText:SetPoint("TOPRIGHT", metaWrap, "TOPRIGHT", -10, 0)
+    metaText:SetJustifyH("LEFT")
+    metaText:SetJustifyV("TOP")
+    metaText:SetText((L and L["SPOT_ACHV_META_DESC"]) or "To complete every achievement, you may need to coordinate your spotting across classes, factions, calendar windows, and repeated sightings with friends or guildmates.")
+
+    local metaTopPad, metaGap, metaBottomPad = 8, 8, 8
+    local measuredMetaHeight = math.ceil((metaTitle:GetStringHeight() or 0) + metaGap + (metaText:GetStringHeight() or 0) + metaTopPad + metaBottomPad)
+    metaWrap:SetHeight(math.max(58, measuredMetaHeight))
+
+    local contentDivider = panel:CreateTexture(nil, "BORDER")
+    contentDivider:SetPoint("TOPLEFT", metaWrap, "BOTTOMLEFT", 0, -8)
+    contentDivider:SetPoint("TOPRIGHT", metaWrap, "BOTTOMRIGHT", 0, -8)
+    contentDivider:SetHeight(1)
+    contentDivider:SetColorTexture(0.55, 0.45, 0.26, 0.35)
+
     local contentArea = CreateFrame("Frame", nil, panel)
-    contentArea:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -48)
+    contentArea:SetPoint("TOPLEFT", contentDivider, "BOTTOMLEFT", 0, -6)
     contentArea:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -30, 12)
 
     local gridScroll = CreateFrame("ScrollFrame", nil, contentArea, "UIPanelScrollFrameTemplate")
@@ -1433,12 +1531,28 @@ function LogbookUI:CreateAchievementsPanel(mainFrame)
 
     self.achievementPanel = panel
     self.achievementHeading = heading
+    self.achievementMetaWrap = metaWrap
+    self.achievementMetaTitle = metaTitle
+    self.achievementMetaText = metaText
+    self.achievementControlsRow = controlsRow
+    self.achievementFilterAllBtn = allBtn
+    self.achievementFilterUnearnedBtn = unearnedBtn
     self.achievementCountText = countText
     self.achievementGridScroll = gridScroll
     self.achievementGridContent = gridContent
     self.achievementEmptyState = empty
     self.achievementTiles = {}
     self.achievementEntries = {}
+end
+
+function LogbookUI:RefreshAchievementFilterButtons()
+    if not self.achievementFilterAllBtn or not self.achievementFilterUnearnedBtn then
+        return
+    end
+
+    local mode = self.achievementFilterMode or "all"
+    SetButtonSelected(self.achievementFilterAllBtn, mode == "all")
+    SetButtonSelected(self.achievementFilterUnearnedBtn, mode == "unearned")
 end
 
 function LogbookUI:EnsureAchievementDetailOverlay()
@@ -1450,30 +1564,38 @@ function LogbookUI:EnsureAchievementDetailOverlay()
     end
 
     local overlay = CreateFrame("Frame", nil, self.achievementPanel, "BackdropTemplate")
-    overlay:SetPoint("TOPLEFT", self.achievementPanel, "TOPLEFT", 24, -64)
-    overlay:SetPoint("BOTTOMRIGHT", self.achievementPanel, "BOTTOMRIGHT", -24, 24)
+    overlay:SetPoint("TOPLEFT", self.achievementPanel, "TOPLEFT", 0, 0)
+    overlay:SetPoint("BOTTOMRIGHT", self.achievementPanel, "BOTTOMRIGHT", 0, 0)
     overlay:SetFrameStrata(self.achievementPanel:GetFrameStrata() or "FULLSCREEN_DIALOG")
     overlay:SetFrameLevel((self.achievementPanel:GetFrameLevel() or 1) + 60)
     overlay:EnableMouse(true)
     overlay:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8X8",
+    })
+    overlay:SetBackdropColor(0, 0, 0, 0.72)
+    overlay:Hide()
+
+    local card = CreateFrame("Frame", nil, overlay, "BackdropTemplate")
+    card:SetPoint("CENTER")
+    card:SetSize(560, 320)
+    card:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8X8",
         edgeFile = "Interface\\Buttons\\WHITE8X8",
         edgeSize = 1,
         insets = { left = 1, right = 1, top = 1, bottom = 1 },
     })
-    overlay:SetBackdropColor(0.06, 0.05, 0.03, 0.98)
-    overlay:SetBackdropBorderColor(0.55, 0.45, 0.26, 0.95)
-    overlay:Hide()
+    card:SetBackdropColor(0.08, 0.07, 0.05, 0.98)
+    card:SetBackdropBorderColor(0.55, 0.45, 0.26, 0.95)
 
-    local heading = overlay:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    heading:SetPoint("TOPLEFT", 12, -10)
-    heading:SetPoint("TOPRIGHT", -12, -10)
+    local heading = card:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    heading:SetPoint("TOPLEFT", 14, -12)
+    heading:SetPoint("TOPRIGHT", -40, -12)
     heading:SetJustifyH("LEFT")
     heading:SetText((L and L["SPOT_ACHV_DETAIL_TITLE"]) or "Achievement Details")
 
-    local bodyWrap = CreateFrame("Frame", nil, overlay, "BackdropTemplate")
-    bodyWrap:SetPoint("TOPLEFT", overlay, "TOPLEFT", 12, -36)
-    bodyWrap:SetPoint("BOTTOMRIGHT", overlay, "BOTTOMRIGHT", -32, 48)
+    local bodyWrap = CreateFrame("Frame", nil, card, "BackdropTemplate")
+    bodyWrap:SetPoint("TOPLEFT", card, "TOPLEFT", 12, -36)
+    bodyWrap:SetPoint("BOTTOMRIGHT", card, "BOTTOMRIGHT", -12, 44)
     bodyWrap:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8X8",
         edgeFile = "Interface\\Buttons\\WHITE8X8",
@@ -1483,8 +1605,13 @@ function LogbookUI:EnsureAchievementDetailOverlay()
     bodyWrap:SetBackdropColor(0.08, 0.07, 0.05, 1.0)
     bodyWrap:SetBackdropBorderColor(0.40, 0.34, 0.22, 0.95)
 
+    local icon = bodyWrap:CreateTexture(nil, "ARTWORK")
+    icon:SetSize(64, 64)
+    icon:SetPoint("TOPLEFT", bodyWrap, "TOPLEFT", 10, -10)
+    icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+
     local name = bodyWrap:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-    name:SetPoint("TOPLEFT", 10, -10)
+    name:SetPoint("TOPLEFT", icon, "TOPRIGHT", 12, -2)
     name:SetPoint("TOPRIGHT", -10, -10)
     name:SetJustifyH("LEFT")
     name:SetJustifyV("TOP")
@@ -1507,13 +1634,33 @@ function LogbookUI:EnsureAchievementDetailOverlay()
     detail:SetJustifyH("LEFT")
     detail:SetJustifyV("TOP")
 
-    local close = CreateFrame("Button", nil, overlay)
+    local closeX = CreateFrame("Button", nil, card)
+    closeX:SetSize(20, 20)
+    closeX:SetPoint("TOPRIGHT", card, "TOPRIGHT", -8, -8)
+    local closeXText = closeX:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    closeXText:SetPoint("CENTER")
+    closeXText:SetText("x")
+    closeXText:SetTextColor(0.95, 0.90, 0.75)
+    closeX:SetScript("OnClick", function() overlay:Hide() end)
+
+    local close = CreateFrame("Button", nil, card)
     close:SetSize(120, 24)
-    close:SetPoint("BOTTOMRIGHT", overlay, "BOTTOMRIGHT", -12, 12)
+    close:SetPoint("BOTTOMRIGHT", card, "BOTTOMRIGHT", -12, 12)
     SkinEpithetButton(close)
     close.label:SetText((L and L["SPOT_ACHV_DETAIL_CLOSE"]) or "Close")
     close:SetScript("OnClick", function() overlay:Hide() end)
 
+    overlay:SetScript("OnMouseDown", function(self_, button)
+        if button == "LeftButton" then
+            self_:Hide()
+        end
+    end)
+    card:SetScript("OnMouseDown", function()
+        -- Keep clicks on the modal card from dismissing via overlay.
+    end)
+
+    overlay.card = card
+    overlay.icon = icon
     overlay.heading = heading
     overlay.name = name
     overlay.desc = desc
@@ -1528,6 +1675,20 @@ function LogbookUI:OpenAchievementDetail(data)
     if not data then return end
     local overlay = self:EnsureAchievementDetailOverlay()
     if not overlay then return end
+
+    local iconPath
+    if data.masked then
+        iconPath = "Interface\\Icons\\inv_misc_questionmark"
+    else
+        iconPath = GetAchievementTileIcon(data.id)
+    end
+    TrySetTexture(overlay.icon, iconPath)
+    overlay.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    if data.masked then
+        overlay.icon:SetVertexColor(0.66, 0.62, 0.55, 1.0)
+    else
+        overlay.icon:SetVertexColor(1, 1, 1, 1)
+    end
 
     local name = data.name or ""
     local desc = data.description or ""
@@ -1752,7 +1913,35 @@ end
 function LogbookUI:RefreshAchievements()
     if not self.achievementPanel then return end
 
-    local entries = (ns.SpottingAchievements and ns.SpottingAchievements.GetDisplayEntries and ns.SpottingAchievements:GetDisplayEntries()) or {}
+    self:RefreshAchievementFilterButtons()
+
+    if self.achievementHeading then
+        self.achievementHeading:SetText((L and L["SPOT_ACHV_HEADING"]) or "Epithet Achievements")
+    end
+    if self.achievementMetaTitle then
+        self.achievementMetaTitle:SetText((L and L["SPOT_ACHV_META_TITLE"]) or "Achievement Hunting Notes")
+    end
+    if self.achievementMetaText then
+        self.achievementMetaText:SetText((L and L["SPOT_ACHV_META_DESC"]) or "To complete every achievement, you may need to coordinate your spotting across classes, factions, calendar windows, and repeated sightings with friends or guildmates.")
+    end
+    if self.achievementMetaWrap and self.achievementMetaTitle and self.achievementMetaText then
+        local measuredMetaHeight = math.ceil((self.achievementMetaTitle:GetStringHeight() or 0) + 8 + (self.achievementMetaText:GetStringHeight() or 0) + 16)
+        self.achievementMetaWrap:SetHeight(math.max(58, measuredMetaHeight))
+    end
+
+    local allEntries = (ns.SpottingAchievements and ns.SpottingAchievements.GetDisplayEntries and ns.SpottingAchievements:GetDisplayEntries()) or {}
+    local mode = self.achievementFilterMode or "all"
+    local entries
+    if mode == "unearned" then
+        entries = {}
+        for _, entry in ipairs(allEntries) do
+            if not entry.earned then
+                entries[#entries + 1] = entry
+            end
+        end
+    else
+        entries = allEntries
+    end
     local earned, total = 0, #entries
     if ns.SpottingAchievements and ns.SpottingAchievements.GetSummary then
         earned, total = ns.SpottingAchievements:GetSummary()

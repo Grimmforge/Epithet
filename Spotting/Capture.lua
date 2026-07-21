@@ -18,6 +18,8 @@ local UnitPVPName = UnitPVPName
 local UnitClass = UnitClass
 local UnitRace = UnitRace
 local UnitSex = UnitSex
+local UnitFactionGroup = UnitFactionGroup
+local UnitIsDeadOrGhost = UnitIsDeadOrGhost
 local GetCurrentTitle = GetCurrentTitle
 local time = time
 
@@ -253,6 +255,27 @@ function Capture:TryCapture(unit, fromRetry)
         raceTag = raceTag,
         sex = sex,
     })
+
+    local db = ns.EnsureSpottingRootDB and ns.EnsureSpottingRootDB()
+    if db and db.spottingEvents then
+        if not db.spottingEvents.beyond_the_grave and UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then
+            db.spottingEvents.beyond_the_grave = {
+                at = time(),
+                titleID = titleID,
+            }
+        end
+
+        if not db.spottingEvents.know_thy_enemy and UnitFactionGroup then
+            local playerFaction = UnitFactionGroup("player")
+            local targetFaction = UnitFactionGroup(unit)
+            if playerFaction and targetFaction and playerFaction ~= targetFaction then
+                db.spottingEvents.know_thy_enemy = {
+                    at = time(),
+                    titleID = titleID,
+                }
+            end
+        end
+    end
 
     if ns.SpottingAchievements and ns.SpottingAchievements.OnSpotRecorded then
         ns.SpottingAchievements:OnSpotRecorded()

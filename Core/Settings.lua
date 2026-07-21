@@ -49,6 +49,39 @@ local function GetProfile()
     return ns.Epithet and ns.Epithet.db and ns.Epithet.db.profile and ns.Epithet.db.profile.social or nil
 end
 
+local function NormalizeAchievementNotifyMode(profile)
+    if not profile then
+        return "full"
+    end
+
+    local mode = profile.achievementNotifyMode
+    if mode ~= "full" and mode ~= "silent" and mode ~= "off" then
+        if profile.achievementNotify == false then
+            mode = "off"
+        else
+            mode = "full"
+        end
+    end
+
+    profile.achievementNotifyMode = mode
+    profile.achievementNotify = (mode ~= "off")
+    return mode
+end
+
+local function NormalizeAchievementAlertAnchor(profile)
+    if not profile then
+        return "uiparent"
+    end
+
+    local mode = profile.achievementAlertAnchor
+    if mode ~= "uiparent" and mode ~= "alertframe" then
+        mode = "uiparent"
+    end
+
+    profile.achievementAlertAnchor = mode
+    return mode
+end
+
 function ns.GetPortraitMode()
     local profile = GetProfile()
     if profile and profile.animatedPortrait == false then
@@ -589,15 +622,131 @@ function Options:Init()
             if profile then profile.spotNotify = value end
         end)
 
-    local achievementNotify = MakeCheck(L["SOCIAL_ACHIEVEMENT_NOTIFY"] or "Achievement notifications", -466,
-        function()
-            local profile = GetProfile()
-            return profile and profile.achievementNotify ~= false
-        end,
-        function(value)
-            local profile = GetProfile()
-            if profile then profile.achievementNotify = value end
-        end)
+    local achievementNotifyHeading = (T and T.Sans and T.Sans(canvas, 12, T.col.text)) or canvas:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    achievementNotifyHeading:SetText(L["SOCIAL_ACHIEVEMENT_NOTIFY_MODE"] or "Achievement notification mode")
+
+    local achievementNotifyDrop = CreateFrame("Frame", "EpithetAchievementNotifyDropdown", canvas, "UIDropDownMenuTemplate")
+    UIDropDownMenu_SetWidth(achievementNotifyDrop, 220)
+
+    local function SetAchievementNotifyMode(mode)
+        local profile = GetProfile()
+        if not profile then
+            return
+        end
+        if mode ~= "full" and mode ~= "silent" and mode ~= "off" then
+            mode = "full"
+        end
+        profile.achievementNotifyMode = mode
+        profile.achievementNotify = (mode ~= "off")
+    end
+
+    local function AchievementNotifyModeLabel(mode)
+        if mode == "silent" then
+            return L["SOCIAL_ACHIEVEMENT_NOTIFY_MODE_SILENT"] or "Popup only (mute sound)"
+        elseif mode == "off" then
+            return L["SOCIAL_ACHIEVEMENT_NOTIFY_MODE_OFF"] or "Off"
+        end
+        return L["SOCIAL_ACHIEVEMENT_NOTIFY_MODE_FULL"] or "Popup + sound"
+    end
+
+    local function RefreshAchievementNotifyDropdown()
+        local profile = GetProfile()
+        local mode = NormalizeAchievementNotifyMode(profile)
+        UIDropDownMenu_SetSelectedValue(achievementNotifyDrop, mode)
+        UIDropDownMenu_SetText(achievementNotifyDrop, AchievementNotifyModeLabel(mode))
+    end
+
+    UIDropDownMenu_Initialize(achievementNotifyDrop, function(_, level)
+        if level ~= 1 then return end
+
+        local profile = GetProfile()
+        local current = NormalizeAchievementNotifyMode(profile)
+        local modes = {
+            { value = "full", label = AchievementNotifyModeLabel("full") },
+            { value = "silent", label = AchievementNotifyModeLabel("silent") },
+            { value = "off", label = AchievementNotifyModeLabel("off") },
+        }
+
+        for _, option in ipairs(modes) do
+            local info = UIDropDownMenu_CreateInfo()
+            info.text = option.label
+            info.value = option.value
+            info.checked = (option.value == current)
+            info.func = function()
+                SetAchievementNotifyMode(option.value)
+                RefreshAchievementNotifyDropdown()
+            end
+            UIDropDownMenu_AddButton(info, level)
+        end
+    end)
+
+    local achievementAnchorHeading = (T and T.Sans and T.Sans(canvas, 12, T.col.text)) or canvas:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    achievementAnchorHeading:SetText(L["SOCIAL_ACHIEVEMENT_ANCHOR_MODE"] or "Achievement popup anchor")
+
+    local achievementAnchorDrop = CreateFrame("Frame", "EpithetAchievementAnchorDropdown", canvas, "UIDropDownMenuTemplate")
+    UIDropDownMenu_SetWidth(achievementAnchorDrop, 220)
+
+    local achievementAnchorNote = (T and T.Sans and T.Sans(canvas, 11, T.col.faint)) or canvas:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    achievementAnchorNote:SetJustifyH("LEFT")
+    achievementAnchorNote:SetJustifyV("TOP")
+    achievementAnchorNote:SetWidth(500)
+
+    local function AchievementAnchorModeLabel(mode)
+        if mode == "alertframe" then
+            return L["SOCIAL_ACHIEVEMENT_ANCHOR_ALERTFRAME"] or "Match Blizzard AlertFrame"
+        end
+        return L["SOCIAL_ACHIEVEMENT_ANCHOR_UIPARENT"] or "Screen top (UIParent)"
+    end
+
+    local function AchievementAnchorModeNote(mode)
+        if mode == "alertframe" then
+            return L["SOCIAL_ACHIEVEMENT_ANCHOR_ALERTFRAME_DESC"] or "Follows Blizzard achievement/loot toast area. If another addon moves or hides AlertFrame, this popup moves with it."
+        end
+        return L["SOCIAL_ACHIEVEMENT_ANCHOR_UIPARENT_DESC"] or "Anchors to the top-center of the screen. Most reliable if AlertFrame is moved or hidden by UI mods."
+    end
+
+    local function SetAchievementAnchorMode(mode)
+        local profile = GetProfile()
+        if not profile then
+            return
+        end
+
+        if mode ~= "uiparent" and mode ~= "alertframe" then
+            mode = "uiparent"
+        end
+        profile.achievementAlertAnchor = mode
+    end
+
+    local function RefreshAchievementAnchorDropdown()
+        local profile = GetProfile()
+        local mode = NormalizeAchievementAlertAnchor(profile)
+        UIDropDownMenu_SetSelectedValue(achievementAnchorDrop, mode)
+        UIDropDownMenu_SetText(achievementAnchorDrop, AchievementAnchorModeLabel(mode))
+        achievementAnchorNote:SetText(AchievementAnchorModeNote(mode))
+    end
+
+    UIDropDownMenu_Initialize(achievementAnchorDrop, function(_, level)
+        if level ~= 1 then return end
+
+        local profile = GetProfile()
+        local current = NormalizeAchievementAlertAnchor(profile)
+        local modes = {
+            { value = "uiparent", label = AchievementAnchorModeLabel("uiparent") },
+            { value = "alertframe", label = AchievementAnchorModeLabel("alertframe") },
+        }
+
+        for _, option in ipairs(modes) do
+            local info = UIDropDownMenu_CreateInfo()
+            info.text = option.label
+            info.value = option.value
+            info.checked = (option.value == current)
+            info.func = function()
+                SetAchievementAnchorMode(option.value)
+                RefreshAchievementAnchorDropdown()
+            end
+            UIDropDownMenu_AddButton(info, level)
+        end
+    end)
 
     local positionHeading = (T and T.Sans and T.Sans(canvas, 12, T.col.goldDim)) or canvas:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     positionHeading:SetPoint("TOPLEFT", 16, -462)
@@ -700,11 +849,23 @@ function Options:Init()
     spotNotify:ClearAllPoints()
     spotNotify:SetPoint("TOPLEFT", hideInGroup, "BOTTOMLEFT", 0, -8)
 
-    achievementNotify:ClearAllPoints()
-    achievementNotify:SetPoint("TOPLEFT", spotNotify, "BOTTOMLEFT", 0, -8)
+    achievementNotifyHeading:ClearAllPoints()
+    achievementNotifyHeading:SetPoint("TOPLEFT", spotNotify, "BOTTOMLEFT", 4, -10)
+
+    achievementNotifyDrop:ClearAllPoints()
+    achievementNotifyDrop:SetPoint("TOPLEFT", achievementNotifyHeading, "BOTTOMLEFT", -20, -2)
+
+    achievementAnchorHeading:ClearAllPoints()
+    achievementAnchorHeading:SetPoint("TOPLEFT", achievementNotifyDrop, "BOTTOMLEFT", 20, -8)
+
+    achievementAnchorDrop:ClearAllPoints()
+    achievementAnchorDrop:SetPoint("TOPLEFT", achievementAnchorHeading, "BOTTOMLEFT", -20, -2)
+
+    achievementAnchorNote:ClearAllPoints()
+    achievementAnchorNote:SetPoint("TOPLEFT", achievementAnchorDrop, "BOTTOMLEFT", 20, -2)
 
     positionHeading:ClearAllPoints()
-    positionHeading:SetPoint("TOPLEFT", achievementNotify, "BOTTOMLEFT", 0, -14)
+    positionHeading:SetPoint("TOPLEFT", achievementAnchorNote, "BOTTOMLEFT", 0, -12)
 
     unlockTarget:ClearAllPoints()
     unlockTarget:SetPoint("TOPLEFT", positionHeading, "BOTTOMLEFT", 0, -6)
@@ -749,7 +910,11 @@ function Options:Init()
         hideInCombat,
         hideInGroup,
         spotNotify,
-        achievementNotify,
+        achievementNotifyHeading,
+        achievementNotifyDrop,
+        achievementAnchorHeading,
+        achievementAnchorDrop,
+        achievementAnchorNote,
         positionHeading,
         unlockTarget,
         resetTarget,
@@ -850,7 +1015,8 @@ function Options:Init()
         hideInCombat:Refresh()
         hideInGroup:Refresh()
         spotNotify:Refresh()
-        achievementNotify:Refresh()
+        RefreshAchievementNotifyDropdown()
+        RefreshAchievementAnchorDropdown()
         unlockTarget:Refresh()
         UpdateScrollBounds((socialEnabled and resetTarget) or enabled)
     end
