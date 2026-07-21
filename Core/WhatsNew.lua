@@ -16,70 +16,170 @@ local gsub = string.gsub
 local match = string.match
 local tostring = tostring
 
-local function EscapeHTML(value)
-    value = tostring(value or "")
-    value = gsub(value, "&", "&amp;")
-    value = gsub(value, "<", "&lt;")
-    value = gsub(value, ">", "&gt;")
-    return value
+-- The dialog used to be rendered by handing a hand-built HTML string to a
+-- SimpleHTML widget, but that widget only parses markup if the whole document
+-- is "well-formed" by its own undocumented rules - anything it doesn't like
+-- (a bare quote character was one culprit) makes it silently fall back to
+-- showing the raw tags as text, with no error to debug against. Rendering
+-- each block as a real FontString/Texture below sidesteps that whole class of
+-- bug: there's no markup to get wrong, just plain text (which can freely
+-- contain quotes, apostrophes, whatever) plus WoW's native |cff..|r colour
+-- codes for emphasis.
+
+-- Image lines may optionally pin a display size with a trailing "=WIDTHxHEIGHT"
+-- (e.g. "![alt](path =460x230)"), so non-square art doesn't get squashed into
+-- the default 96x96 icon box. Falls back to 96x96 when no size is given.
+local DEFAULT_IMAGE_SIZE = 96
+
+local function ParseImageDirective(raw)
+    local path, w, h = match(raw, "^(.-)%s*=%s*(%d+)x(%d+)%s*$")
+    if not path then
+        path = raw
+    end
+    return path, tonumber(w) or DEFAULT_IMAGE_SIZE, tonumber(h) or DEFAULT_IMAGE_SIZE
 end
 
-local function RenderInline(value)
-    local text = EscapeHTML(value)
-    text = gsub(text, "%*%*(.-)%*%*", "<b>%1</b>")
-    text = gsub(text, "%*(.-)%*", "<i>%1</i>")
+-- **bold** and *emphasis* become WoW colour-code runs instead of HTML tags -
+-- there's no italic font loaded, so emphasis just gets a different tint.
+local BOLD_COLOR = "fff6e2a6"
+local EMPHASIS_COLOR = "ffe8c873"
+
+local function RenderInlineColor(value)
+    local text = tostring(value or "")
+    text = gsub(text, "%*%*(.-)%*%*", "|c" .. BOLD_COLOR .. "%1|r")
+    text = gsub(text, "%*(.-)%*", "|c" .. EMPHASIS_COLOR .. "%1|r")
     return text
 end
 
-local function BuildHTMLFromBody(body)
+-- Turns the markdown-ish body text into a flat list of layout blocks. Blank
+-- lines in the source are ignored entirely - spacing between blocks is a
+-- fixed property of the block types involved (see BLOCK_STYLE), not
+-- something content authors need to remember to add.
+local function BuildBlocks(body)
     local src = tostring(body or "")
-    local html = { "<html><body>" }
+    local blocks = {}
 
     for line in src:gmatch("[^\r\n]+") do
-        local h2 = match(line, "^%s*##%s+(.+)$")
-        local h1 = match(line, "^%s*#%s+(.+)$")
-        local imagePath = match(line, "^%s*!%[[^%]]*%]%((.+)%)%s*$")
+        if not line:match("^%s*$") then
+            local h2 = match(line, "^%s*##%s+(.+)$")
+            local h1 = (not h2) and match(line, "^%s*#%s+(.+)$")
+            local bullet = (not h2 and not h1) and match(line, "^%s*%*%s+(.+)$")
+            local imageDirective = match(line, "^%s*!%[[^%]]*%]%((.+)%)%s*$")
 
-        if imagePath and imagePath ~= "" then
-            html[#html + 1] = "<p>|T" .. imagePath .. ":96:96|t</p>"
-        elseif h2 then
-            html[#html + 1] = "<h2>" .. RenderInline(h2) .. "</h2>"
-        elseif h1 then
-            html[#html + 1] = "<h1>" .. RenderInline(h1) .. "</h1>"
-        elseif line:match("^%s*$") then
-            html[#html + 1] = "<p>&nbsp;</p>"
-        else
-            html[#html + 1] = "<p>" .. RenderInline(line) .. "</p>"
+            if imageDirective and imageDirective ~= "" then
+                local path, w, h = ParseImageDirective(imageDirective)
+                blocks[#blocks + 1] = { type = "image", path = path, w = w, h = h }
+            elseif h2 then
+                blocks[#blocks + 1] = { type = "h2", text = RenderInlineColor(h2) }
+            elseif h1 then
+                blocks[#blocks + 1] = { type = "h1", text = RenderInlineColor(h1) }
+            elseif bullet then
+                blocks[#blocks + 1] = { type = "bullet", text = RenderInlineColor(bullet) }
+            else
+                blocks[#blocks + 1] = { type = "p", text = RenderInlineColor(line) }
+            end
         end
     end
 
-    html[#html + 1] = "</body></html>"
-    return table.concat(html, "\n")
+    return blocks
 end
 
-local function EstimateBodyHeight(body)
-    local src = tostring(body or "")
-    local total = 0
+-- Layout constants: content width matches the scroll frame's inner width
+-- (760 dialog - 18 left inset - 38 right inset - scrollbar allowance), and
+-- each block type carries its own font/colour plus the gap it always gets
+-- above it, so headings and images are guaranteed breathing room regardless
+-- of how the source markdown is formatted.
+local BODY_WIDTH = 690
+local BULLET_INDENT = 14
+local IMAGE_GAP_BEFORE = 14
 
-    for line in src:gmatch("[^\r\n]+") do
-        local h2 = match(line, "^%s*##%s+(.+)$")
-        local h1 = match(line, "^%s*#%s+(.+)$")
-        local imagePath = match(line, "^%s*!%[[^%]]*%]%((.+)%)%s*$")
+local BLOCK_STYLE = {
+    h1 = { font = "Fonts\\FRIZQT__.TTF", size = 18, color = { 0.96, 0.89, 0.65 }, gapBefore = 18 },
+    h2 = { font = "Fonts\\FRIZQT__.TTF", size = 14, color = { 0.90, 0.80, 0.52 }, gapBefore = 16 },
+    p = { font = "Fonts\\FRIZQT__.TTF", size = 12, color = { 0.86, 0.82, 0.74 }, gapBefore = 10 },
+    bullet = { font = "Fonts\\FRIZQT__.TTF", size = 12, color = { 0.86, 0.82, 0.74 }, gapBefore = 10, gapBeforeSameType = 4 },
+}
 
-        if imagePath and imagePath ~= "" then
-            total = total + 106
-        elseif h1 then
-            total = total + 28
-        elseif h2 then
-            total = total + 22
-        elseif line:match("^%s*$") then
-            total = total + 10
+function WhatsNew:AcquireTextWidget(index)
+    self.textWidgets = self.textWidgets or {}
+    local fs = self.textWidgets[index]
+    if not fs then
+        fs = self.dialogContent:CreateFontString(nil, "ARTWORK")
+        fs:SetJustifyH("LEFT")
+        fs:SetJustifyV("TOP")
+        fs:SetWordWrap(true)
+        self.textWidgets[index] = fs
+    end
+    return fs
+end
+
+function WhatsNew:AcquireImageWidget(index)
+    self.imageWidgets = self.imageWidgets or {}
+    local tex = self.imageWidgets[index]
+    if not tex then
+        tex = self.dialogContent:CreateTexture(nil, "ARTWORK")
+        self.imageWidgets[index] = tex
+    end
+    return tex
+end
+
+-- Lays out one block per pooled widget, top to bottom, and returns the total
+-- content height so the caller can size the scroll child. Widgets are pooled
+-- and reused across calls since a FontString/Texture can't be destroyed, only
+-- hidden; any left over from a previous, longer body get hidden at the end.
+function WhatsNew:RenderBody(rawBody)
+    self.textWidgets = self.textWidgets or {}
+    self.imageWidgets = self.imageWidgets or {}
+
+    local blocks = BuildBlocks(rawBody)
+    local textIndex, imageIndex = 0, 0
+    local y = 0
+    local prevType = nil
+
+    for _, block in ipairs(blocks) do
+        if block.type == "image" then
+            y = y + IMAGE_GAP_BEFORE
+            imageIndex = imageIndex + 1
+            local tex = self:AcquireImageWidget(imageIndex)
+            tex:ClearAllPoints()
+            tex:SetPoint("TOPLEFT", self.dialogContent, "TOPLEFT", 0, -y)
+            tex:SetSize(block.w, block.h)
+            tex:SetTexture(block.path)
+            tex:Show()
+            y = y + block.h
         else
-            total = total + 16
+            local style = BLOCK_STYLE[block.type]
+            local gap = style.gapBefore
+            if block.type == "bullet" and prevType == "bullet" then
+                gap = style.gapBeforeSameType
+            end
+            y = y + gap
+
+            textIndex = textIndex + 1
+            local fs = self:AcquireTextWidget(textIndex)
+            fs:ClearAllPoints()
+            local indent = (block.type == "bullet") and BULLET_INDENT or 0
+            fs:SetPoint("TOPLEFT", self.dialogContent, "TOPLEFT", indent, -y)
+            fs:SetWidth(BODY_WIDTH - indent)
+            fs:SetFont(style.font, style.size, "")
+            fs:SetTextColor(style.color[1], style.color[2], style.color[3], 1)
+            fs:SetText(block.type == "bullet" and ("\226\128\162  " .. block.text) or block.text)
+            fs:Show()
+
+            y = y + (fs:GetStringHeight() or (style.size + 4))
         end
+
+        prevType = block.type
     end
 
-    return math.max(64, total + 24)
+    for i = textIndex + 1, #self.textWidgets do
+        self.textWidgets[i]:Hide()
+    end
+    for i = imageIndex + 1, #self.imageWidgets do
+        self.imageWidgets[i]:Hide()
+    end
+
+    return y
 end
 
 function WhatsNew:GetCurrentVersion()
@@ -201,27 +301,12 @@ function WhatsNew:EnsureDialog()
     scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", 18, -48)
     scroll:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -38, 52)
 
-    local html = CreateFrame("SimpleHTML", nil, scroll)
-    html:SetWidth(690)
-    html:SetHeight(1)
-    html:SetPoint("TOPLEFT", scroll, "TOPLEFT", 0, 0)
-    html:SetJustifyH("h1", "LEFT")
-    html:SetJustifyH("h2", "LEFT")
-    html:SetJustifyH("p", "LEFT")
-    html:SetJustifyV("h1", "TOP")
-    html:SetJustifyV("h2", "TOP")
-    html:SetJustifyV("p", "TOP")
-    html:SetSpacing("h1", 4)
-    html:SetSpacing("h2", 3)
-    html:SetSpacing("p", 2)
-    html:SetFont("h1", "Fonts\\FRIZQT__.TTF", 18, "")
-    html:SetFont("h2", "Fonts\\FRIZQT__.TTF", 14, "")
-    html:SetFont("p", "Fonts\\FRIZQT__.TTF", 12, "")
-    html:SetTextColor("h1", 0.96, 0.89, 0.65, 1)
-    html:SetTextColor("h2", 0.90, 0.80, 0.52, 1)
-    html:SetTextColor("p", 0.86, 0.82, 0.74, 1)
+    local body = CreateFrame("Frame", nil, scroll)
+    body:SetWidth(BODY_WIDTH)
+    body:SetHeight(1)
+    body:SetPoint("TOPLEFT", scroll, "TOPLEFT", 0, 0)
 
-    scroll:SetScrollChild(html)
+    scroll:SetScrollChild(body)
 
     local dismiss = CreateFrame("Button", nil, frame)
     dismiss:SetSize(220, 24)
@@ -288,7 +373,7 @@ function WhatsNew:EnsureDialog()
 
     self.dialog = frame
     self.dialogHeading = heading
-    self.dialogHTML = html
+    self.dialogContent = body
     self.dialogScroll = scroll
 
     return frame
@@ -308,18 +393,8 @@ function WhatsNew:Show(version)
     local title = content.title or ((L and L["WHATS_NEW_HEADING"]) or "What's New")
     self.dialogHeading:SetText(title)
 
-    local rawBody = content.body or ""
-    local bodyHTML = BuildHTMLFromBody(rawBody)
-    self.dialogHTML:SetText(bodyHTML)
-
-    local htmlHeight = nil
-    if self.dialogHTML.GetStringHeight then
-        htmlHeight = self.dialogHTML:GetStringHeight()
-    end
-    if not htmlHeight or htmlHeight <= 0 then
-        htmlHeight = EstimateBodyHeight(rawBody)
-    end
-    self.dialogHTML:SetHeight(math.max(1, htmlHeight + 32))
+    local totalHeight = self:RenderBody(content.body or "")
+    self.dialogContent:SetHeight(math.max(1, totalHeight + 16))
     self.dialogScroll:SetVerticalScroll(0)
 
     frame:Show()

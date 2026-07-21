@@ -27,6 +27,13 @@ local TILE_GAP = 10
 local ACHV_TILE_MIN = 74
 local ACHV_TILE_GAP = 10
 
+local STANDARD_BACKDROP = {
+    bgFile = "Interface\\Buttons\\WHITE8X8",
+    edgeFile = "Interface\\Buttons\\WHITE8X8",
+    edgeSize = 1,
+    insets = { left = 1, right = 1, top = 1, bottom = 1 },
+}
+
 local ACHIEVEMENT_FALLBACK_ICONS = {
     count_1 = "Interface\\Icons\\INV_Misc_Spyglass_02",
     count_10 = "Interface\\Icons\\INV_Misc_Eye_01",
@@ -358,6 +365,13 @@ local function ExtractAtlasCoords(value, sex)
     return nil
 end
 
+local RACE_COORD_ALIASES = {
+    scourge = "Scourge",
+    undead = "Scourge",
+    dracthyr = "Dracthyr",
+    earthen = "Earthen",
+}
+
 local function GetRaceCoords(raceTag, sex)
     local coords = _G.RACE_ICON_TCOORDS
     if not coords or not raceTag then
@@ -386,13 +400,7 @@ local function GetRaceCoords(raceTag, sex)
         end
     end
 
-    local alias = {
-        scourge = "Scourge",
-        undead = "Scourge",
-        dracthyr = "Dracthyr",
-        earthen = "Earthen",
-    }
-    local aliased = alias[lower]
+    local aliased = RACE_COORD_ALIASES[lower]
     if aliased then
         local resolved = ExtractAtlasCoords(coords[aliased], sex)
         if resolved then
@@ -408,16 +416,9 @@ local function GetRaceCoords(raceTag, sex)
     end
 
     if lower == "magharorc" then
-        local apostrophe = ExtractAtlasCoords(coords["Mag'harOrc"], sex)
-        if apostrophe then
-            return apostrophe
-        end
-    end
-
-    if lower == "magharorc" then
-        local plain = ExtractAtlasCoords(coords.MagharOrc, sex)
-        if plain then
-            return plain
+        local resolved = ExtractAtlasCoords(coords["Mag'harOrc"], sex) or ExtractAtlasCoords(coords.MagharOrc, sex)
+        if resolved then
+            return resolved
         end
     end
 
@@ -443,28 +444,28 @@ local function GetRaceCoords(raceTag, sex)
     return nil
 end
 
+local RACE_LABEL_OVERRIDES = {
+    Scourge = "Undead",
+    HighmountainTauren = "Highmountain Tauren",
+    LightforgedDraenei = "Lightforged Draenei",
+    DarkIronDwarf = "Dark Iron Dwarf",
+    MagharOrc = "Mag'har Orc",
+    ZandalariTroll = "Zandalari Troll",
+    KulTiran = "Kul Tiran",
+    VoidElf = "Void Elf",
+    Nightborne = "Nightborne",
+    Mechagnome = "Mechagnome",
+    Dracthyr = "Dracthyr",
+    Earthen = "Earthen",
+}
+
 local function FormatRaceLabel(raceTag)
     if type(raceTag) ~= "string" or raceTag == "" then
         return nil
     end
 
-    local map = {
-        Scourge = "Undead",
-        HighmountainTauren = "Highmountain Tauren",
-        LightforgedDraenei = "Lightforged Draenei",
-        DarkIronDwarf = "Dark Iron Dwarf",
-        MagharOrc = "Mag'har Orc",
-        ZandalariTroll = "Zandalari Troll",
-        KulTiran = "Kul Tiran",
-        VoidElf = "Void Elf",
-        Nightborne = "Nightborne",
-        Mechagnome = "Mechagnome",
-        Dracthyr = "Dracthyr",
-        Earthen = "Earthen",
-    }
-
-    if map[raceTag] then
-        return map[raceTag]
+    if RACE_LABEL_OVERRIDES[raceTag] then
+        return RACE_LABEL_OVERRIDES[raceTag]
     end
 
     local label = raceTag:gsub("(%l)(%u)", "%1 %2")
@@ -516,36 +517,12 @@ local RACE_ICON_FALLBACKS = {
     harronir = "Interface\\Icons\\Achievement_Character_Nightelf_Male",
 }
 
-local RACE_ICON_FALLBACKS_FEMALE = {
-    human = "Interface\\Icons\\Achievement_Character_Human_Female",
-    orc = "Interface\\Icons\\Achievement_Character_Orc_Female",
-    dwarf = "Interface\\Icons\\Achievement_Character_Dwarf_Female",
-    nightelf = "Interface\\Icons\\Achievement_Character_Nightelf_Female",
-    scourge = "Interface\\Icons\\Achievement_Character_Undead_Female",
-    undead = "Interface\\Icons\\Achievement_Character_Undead_Female",
-    tauren = "Interface\\Icons\\Achievement_Character_Tauren_Female",
-    gnome = "Interface\\Icons\\Achievement_Character_Gnome_Female",
-    troll = "Interface\\Icons\\Achievement_Character_Troll_Female",
-    goblin = "Interface\\Icons\\Achievement_Character_Goblin_Female",
-    bloodelf = "Interface\\Icons\\Achievement_Character_Bloodelf_Female",
-    draenei = "Interface\\Icons\\Achievement_Character_Draenei_Female",
-    worgen = "Interface\\Icons\\Achievement_Character_Worgen_Female",
-    pandaren = "Interface\\Icons\\Achievement_Character_Pandaren_Female",
-    voidelf = "Interface\\Icons\\Achievement_Character_Voidelf_Female",
-    lightforgeddraenei = "Interface\\Icons\\Achievement_Character_Lightforgeddraenei_Female",
-    highmountaintauren = "Interface\\Icons\\Achievement_Character_Highmountaintauren_Female",
-    nightborne = "Interface\\Icons\\Achievement_Character_Nightborne_Female",
-    magharorc = "Interface\\Icons\\Achievement_Character_Orc_Female",
-    darkirondwarf = "Interface\\Icons\\Achievement_Character_Darkirondwarf_Female",
-    zandalaritroll = "Interface\\Icons\\Achievement_Character_ZandalariTroll_Female",
-    kultiran = "Interface\\Icons\\Achievement_Character_KulTiran_Female",
-    mechagnome = "Interface\\Icons\\Achievement_Character_Mechagnome_Female",
-    vulpera = "Interface\\Icons\\Achievement_Character_Vulpera_Female",
-    dracthyr = "Interface\\Icons\\Achievement_Character_Dracthyr_Female",
-    earthen = "Interface\\Icons\\Achievement_Character_Earthen_Female",
-    haranir = "Interface\\Icons\\Achievement_Character_Nightelf_Female",
-    harronir = "Interface\\Icons\\Achievement_Character_Nightelf_Female",
-}
+-- Every fallback icon follows Achievement_Character_<Race>_Male, so the
+-- female set is derived rather than hand-duplicated.
+local RACE_ICON_FALLBACKS_FEMALE = {}
+for raceKey, malePath in pairs(RACE_ICON_FALLBACKS) do
+    RACE_ICON_FALLBACKS_FEMALE[raceKey] = (malePath:gsub("_Male$", "_Female"))
+end
 
 local RACE_ICON_ALIAS_TO_BASE = {
     magharorc = "orc",
@@ -768,6 +745,107 @@ local function SetButtonSelected(button, selected)
     end
 end
 
+local function CreateChromePanel(mainFrame)
+    local panel = CreateFrame("Frame", nil, mainFrame, "BackdropTemplate")
+    panel:SetPoint("TOPLEFT", mainFrame, "TOPLEFT", 10, -40)
+    panel:SetPoint("BOTTOMRIGHT", mainFrame, "BOTTOMRIGHT", -10, 10)
+    panel:SetFrameStrata("FULLSCREEN_DIALOG")
+    panel:SetFrameLevel((mainFrame:GetFrameLevel() or 1) + 200)
+    panel:EnableMouse(true)
+    panel:SetBackdrop(STANDARD_BACKDROP)
+
+    if T and T.col then
+        panel:SetBackdropColor(T.col.bg0.r, T.col.bg0.g, T.col.bg0.b, 1.0)
+        panel:SetBackdropBorderColor(T.col.line.r, T.col.line.g, T.col.line.b, 0.8)
+    else
+        panel:SetBackdropColor(0.08, 0.06, 0.03, 1.0)
+        panel:SetBackdropBorderColor(0.55, 0.45, 0.26, 0.8)
+    end
+    panel:Hide()
+
+    return panel
+end
+
+local function CreateCloseButton(panel, onClick)
+    local close = CreateFrame("Button", nil, panel)
+    close:SetSize(18, 18)
+    close:SetPoint("TOPRIGHT", -10, -10)
+    local closeText = close:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    closeText:SetPoint("CENTER")
+    closeText:SetText("x")
+    closeText:SetScale(2)
+    closeText:SetTextColor(0.95, 0.90, 0.75)
+    close:SetScript("OnClick", onClick)
+    return close
+end
+
+-- Shared by the list/grid scroll areas in the log panel and the achievements
+-- grid: mouse-wheel scrolling clamped to the content's actual height.
+local function AttachWheelScroll(scrollFrame, contentFrame, step)
+    scrollFrame:SetScript("OnMouseWheel", function(self_, delta)
+        local current = self_:GetVerticalScroll() or 0
+        local maxScroll = math.max(0, (contentFrame:GetHeight() or 0) - (self_:GetHeight() or 0))
+        if delta > 0 then
+            self_:SetVerticalScroll(math.max(0, current - step))
+        else
+            self_:SetVerticalScroll(math.min(maxScroll, current + step))
+        end
+    end)
+end
+
+-- Keeps a scroll child's width in sync with its (resizable) container.
+local function AttachContentWidthSync(sizingFrame, contentFrame, onResized)
+    sizingFrame:SetScript("OnSizeChanged", function(self_)
+        local width = math.max(1, (self_:GetWidth() or 0) - 8)
+        contentFrame:SetWidth(width)
+        if onResized then
+            onResized()
+        end
+    end)
+end
+
+-- Info/meta banners size themselves to fit their (localized, variable-length)
+-- title + body text, never shrinking below minHeight.
+local function ApplyMeasuredBannerHeight(wrap, titleFS, textFS, minHeight)
+    local measured = math.ceil((titleFS:GetStringHeight() or 0) + 8 + (textFS:GetStringHeight() or 0) + 16)
+    wrap:SetHeight(math.max(minHeight, measured))
+end
+
+local function FormatAchievementEarnedText(earnedText)
+    return (L and L["SPOT_ACHV_EARNED_FMT"] and string.format(L["SPOT_ACHV_EARNED_FMT"], earnedText)) or ("Earned " .. earnedText)
+end
+
+-- Shared between the list row and grid tile widgets (both expose the same
+-- .state/.portrait/.race/.raceBlend fields) so the spotted/unspotted icon
+-- state isn't hand-duplicated per view.
+local function ApplySpottedStateIcons(widget, data)
+    if data.isSpotted then
+        TrySetTexture(widget.state, CHECK_ICON)
+        widget.state:SetVertexColor(0.90, 0.74, 0.30, 1.0)
+
+        local classCoords = GetClassCoords(data.log and data.log.classTag)
+        if classCoords then
+            widget.portrait:SetTexCoord(classCoords[1], classCoords[2], classCoords[3], classCoords[4])
+            widget.portrait:Show()
+        else
+            widget.portrait:Hide()
+        end
+
+        if ApplyRaceTexture(widget.race, widget.raceBlend, data.log and data.log.raceTag, data.log and data.log.sex) then
+            widget.race:Show()
+        else
+            widget.race:Hide()
+            if widget.raceBlend then widget.raceBlend:Hide() end
+        end
+    else
+        TrySetTexture(widget.state, LOCK_ICON)
+        widget.state:SetVertexColor(0.56, 0.52, 0.45, 1.0)
+        widget.portrait:Hide()
+        widget.race:Hide()
+        if widget.raceBlend then widget.raceBlend:Hide() end
+    end
+end
+
 function LogbookUI:LoadPrefs()
     local social = GetSocialProfile()
     local view = social and social.spotLogView or "grid"
@@ -933,12 +1011,7 @@ function LogbookUI:EnsureTransferModal()
     modal:SetFrameStrata(panel:GetFrameStrata() or "FULLSCREEN_DIALOG")
     modal:SetFrameLevel((panel:GetFrameLevel() or 1) + 50)
     modal:EnableMouse(true)
-    modal:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-        insets = { left = 1, right = 1, top = 1, bottom = 1 },
-    })
+    modal:SetBackdrop(STANDARD_BACKDROP)
     modal:SetBackdropColor(0.06, 0.05, 0.03, 0.98)
     modal:SetBackdropBorderColor(0.55, 0.45, 0.26, 0.95)
     modal:Hide()
@@ -958,12 +1031,7 @@ function LogbookUI:EnsureTransferModal()
     local editorWrap = CreateFrame("Frame", nil, modal, "BackdropTemplate")
     editorWrap:SetPoint("TOPLEFT", modal, "TOPLEFT", 12, -48)
     editorWrap:SetPoint("BOTTOMRIGHT", modal, "BOTTOMRIGHT", -32, 48)
-    editorWrap:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-        insets = { left = 1, right = 1, top = 1, bottom = 1 },
-    })
+    editorWrap:SetBackdrop(STANDARD_BACKDROP)
     editorWrap:SetBackdropColor(0.08, 0.07, 0.05, 1.0)
     editorWrap:SetBackdropBorderColor(0.40, 0.34, 0.22, 0.95)
 
@@ -1076,27 +1144,7 @@ function LogbookUI:OpenImportModal()
 end
 
 function LogbookUI:CreatePanel(mainFrame)
-    local panel = CreateFrame("Frame", nil, mainFrame, "BackdropTemplate")
-    panel:SetPoint("TOPLEFT", mainFrame, "TOPLEFT", 10, -40)
-    panel:SetPoint("BOTTOMRIGHT", mainFrame, "BOTTOMRIGHT", -10, 10)
-    panel:SetFrameStrata("FULLSCREEN_DIALOG")
-    panel:SetFrameLevel((mainFrame:GetFrameLevel() or 1) + 200)
-    panel:EnableMouse(true)
-    panel:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-        insets = { left = 1, right = 1, top = 1, bottom = 1 },
-    })
-
-    if T and T.col then
-        panel:SetBackdropColor(T.col.bg0.r, T.col.bg0.g, T.col.bg0.b, 1.0)
-        panel:SetBackdropBorderColor(T.col.line.r, T.col.line.g, T.col.line.b, 0.8)
-    else
-        panel:SetBackdropColor(0.08, 0.06, 0.03, 1.0)
-        panel:SetBackdropBorderColor(0.55, 0.45, 0.26, 0.8)
-    end
-    panel:Hide()
+    local panel = CreateChromePanel(mainFrame)
 
     local heading = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
     heading:SetPoint("TOPLEFT", 14, -12)
@@ -1108,15 +1156,7 @@ function LogbookUI:CreatePanel(mainFrame)
     countText:SetJustifyH("RIGHT")
     self.countText = countText
 
-    local close = CreateFrame("Button", nil, panel)
-    close:SetSize(18, 18)
-    close:SetPoint("TOPRIGHT", -10, -10)
-    local closeText = close:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    closeText:SetPoint("CENTER")
-    closeText:SetText("x")
-    closeText:SetScale(2)
-    closeText:SetTextColor(0.95, 0.90, 0.75)
-    close:SetScript("OnClick", function() self:Hide() end)
+    CreateCloseButton(panel, function() self:Hide() end)
 
     local controlsRow = CreateFrame("Frame", nil, panel)
     controlsRow:SetPoint("TOPLEFT", panel, "TOPLEFT", 14, -38)
@@ -1171,12 +1211,7 @@ function LogbookUI:CreatePanel(mainFrame)
     infoWrap:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -70)
     infoWrap:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -12, -70)
     infoWrap:SetHeight(62)
-    infoWrap:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-        insets = { left = 1, right = 1, top = 1, bottom = 1 },
-    })
+    infoWrap:SetBackdrop(STANDARD_BACKDROP)
     infoWrap:SetBackdropColor(0.09, 0.07, 0.04, 0.95)
     infoWrap:SetBackdropBorderColor(0.55, 0.45, 0.26, 0.65)
 
@@ -1193,9 +1228,7 @@ function LogbookUI:CreatePanel(mainFrame)
     infoText:SetJustifyV("TOP")
     infoText:SetText((L and L["SPOTTING_META_DESC"]) or "Totally normal activity: click players, target strangers, and quietly evaluate their title choices for science. First-spot unique titles to fill your log, then chase meta achievements across rarity, classes, zones, and repeat sightings. Completionists may experience a powerful urge to inspect absolutely everyone in sight. This is expected.")
 
-    local metaTopPad, metaGap, metaBottomPad = 8, 8, 8
-    local measuredMetaHeight = math.ceil((infoTitle:GetStringHeight() or 0) + metaGap + (infoText:GetStringHeight() or 0) + metaTopPad + metaBottomPad)
-    infoWrap:SetHeight(math.max(62, measuredMetaHeight))
+    ApplyMeasuredBannerHeight(infoWrap, infoTitle, infoText, 62)
 
     local divider = panel:CreateTexture(nil, "BORDER")
     divider:SetPoint("TOPLEFT", infoWrap, "BOTTOMLEFT", 0, -8)
@@ -1222,21 +1255,8 @@ function LogbookUI:CreatePanel(mainFrame)
     listContent:SetHeight(1)
     listScroll:SetScrollChild(listContent)
 
-    listWrap:SetScript("OnSizeChanged", function(self_)
-        local width = math.max(1, (self_:GetWidth() or 0) - 8)
-        listContent:SetWidth(width)
-    end)
-
-    listScroll:SetScript("OnMouseWheel", function(self_, delta)
-        local current = self_:GetVerticalScroll() or 0
-        local step = 32
-        local maxScroll = math.max(0, (listContent:GetHeight() or 0) - (self_:GetHeight() or 0))
-        if delta > 0 then
-            self_:SetVerticalScroll(math.max(0, current - step))
-        else
-            self_:SetVerticalScroll(math.min(maxScroll, current + step))
-        end
-    end)
+    AttachContentWidthSync(listWrap, listContent)
+    AttachWheelScroll(listScroll, listContent, 32)
 
     local gridWrap = CreateFrame("Frame", nil, contentArea)
     gridWrap:SetAllPoints(contentArea)
@@ -1252,21 +1272,8 @@ function LogbookUI:CreatePanel(mainFrame)
     gridContent:SetHeight(1)
     gridScroll:SetScrollChild(gridContent)
 
-    gridWrap:SetScript("OnSizeChanged", function(self_)
-        local width = math.max(1, (self_:GetWidth() or 0) - 8)
-        gridContent:SetWidth(width)
-    end)
-
-    gridScroll:SetScript("OnMouseWheel", function(self_, delta)
-        local current = self_:GetVerticalScroll() or 0
-        local step = 48
-        local maxScroll = math.max(0, (gridContent:GetHeight() or 0) - (self_:GetHeight() or 0))
-        if delta > 0 then
-            self_:SetVerticalScroll(math.max(0, current - step))
-        else
-            self_:SetVerticalScroll(math.min(maxScroll, current + step))
-        end
-    end)
+    AttachContentWidthSync(gridWrap, gridContent)
+    AttachWheelScroll(gridScroll, gridContent, 48)
 
     local empty = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     empty:SetPoint("CENTER", panel, "CENTER", 0, -12)
@@ -1297,7 +1304,6 @@ function LogbookUI:CreatePanel(mainFrame)
     end)
 
     panel:SetScript("OnShow", function()
-        self.stateWasEnabled = nil
         self:Refresh()
     end)
 
@@ -1314,11 +1320,8 @@ function LogbookUI:CreatePanel(mainFrame)
     self.panel = panel
     self.scopeSpottedBtn = spottedBtn
     self.scopeRemainingBtn = remainingBtn
-    self.viewSeparator = viewSep
     self.viewListBtn = listBtn
     self.viewGridBtn = gridBtn
-    self.exportBtn = exportBtn
-    self.importBtn = importBtn
     self.metaGameInfo = infoWrap
     self.listWrap = listWrap
     self.listScroll = listScroll
@@ -1345,6 +1348,7 @@ end
 function LogbookUI:Show()
     if not self.panel then return end
     if self.achievementPanel and self.achievementPanel:IsShown() then
+        self:CloseAchievementDetail()
         self.achievementPanel:Hide()
     end
     self.panel:Raise()
@@ -1363,6 +1367,7 @@ function LogbookUI:ShowAchievements()
 end
 
 function LogbookUI:Hide()
+    self:CloseAchievementDetail()
     if self.panel then
         self.panel:Hide()
     end
@@ -1372,27 +1377,7 @@ function LogbookUI:Hide()
 end
 
 function LogbookUI:CreateAchievementsPanel(mainFrame)
-    local panel = CreateFrame("Frame", nil, mainFrame, "BackdropTemplate")
-    panel:SetPoint("TOPLEFT", mainFrame, "TOPLEFT", 10, -40)
-    panel:SetPoint("BOTTOMRIGHT", mainFrame, "BOTTOMRIGHT", -10, 10)
-    panel:SetFrameStrata("FULLSCREEN_DIALOG")
-    panel:SetFrameLevel((mainFrame:GetFrameLevel() or 1) + 200)
-    panel:EnableMouse(true)
-    panel:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-        insets = { left = 1, right = 1, top = 1, bottom = 1 },
-    })
-
-    if T and T.col then
-        panel:SetBackdropColor(T.col.bg0.r, T.col.bg0.g, T.col.bg0.b, 1.0)
-        panel:SetBackdropBorderColor(T.col.line.r, T.col.line.g, T.col.line.b, 0.8)
-    else
-        panel:SetBackdropColor(0.08, 0.06, 0.03, 1.0)
-        panel:SetBackdropBorderColor(0.55, 0.45, 0.26, 0.8)
-    end
-    panel:Hide()
+    local panel = CreateChromePanel(mainFrame)
 
     local heading = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
     heading:SetPoint("TOPLEFT", 14, -12)
@@ -1402,15 +1387,7 @@ function LogbookUI:CreateAchievementsPanel(mainFrame)
     countText:SetPoint("TOPRIGHT", -36, -16)
     countText:SetJustifyH("RIGHT")
 
-    local close = CreateFrame("Button", nil, panel)
-    close:SetSize(18, 18)
-    close:SetPoint("TOPRIGHT", -10, -10)
-    local closeText = close:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    closeText:SetPoint("CENTER")
-    closeText:SetText("x")
-    closeText:SetScale(2)
-    closeText:SetTextColor(0.95, 0.90, 0.75)
-    close:SetScript("OnClick", function() self:Hide() end)
+    CreateCloseButton(panel, function() self:Hide() end)
 
     local controlsRow = CreateFrame("Frame", nil, panel)
     controlsRow:SetPoint("TOPLEFT", panel, "TOPLEFT", 14, -42)
@@ -1443,12 +1420,7 @@ function LogbookUI:CreateAchievementsPanel(mainFrame)
     metaWrap:SetPoint("TOPLEFT", divider, "BOTTOMLEFT", 0, -8)
     metaWrap:SetPoint("TOPRIGHT", divider, "BOTTOMRIGHT", 0, -8)
     metaWrap:SetHeight(58)
-    metaWrap:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-        insets = { left = 1, right = 1, top = 1, bottom = 1 },
-    })
+    metaWrap:SetBackdrop(STANDARD_BACKDROP)
     metaWrap:SetBackdropColor(0.09, 0.07, 0.04, 0.95)
     metaWrap:SetBackdropBorderColor(0.55, 0.45, 0.26, 0.65)
 
@@ -1465,9 +1437,7 @@ function LogbookUI:CreateAchievementsPanel(mainFrame)
     metaText:SetJustifyV("TOP")
     metaText:SetText((L and L["SPOT_ACHV_META_DESC"]) or "To complete every achievement, you may need to coordinate your spotting across classes, factions, calendar windows, and repeated sightings with friends or guildmates.")
 
-    local metaTopPad, metaGap, metaBottomPad = 8, 8, 8
-    local measuredMetaHeight = math.ceil((metaTitle:GetStringHeight() or 0) + metaGap + (metaText:GetStringHeight() or 0) + metaTopPad + metaBottomPad)
-    metaWrap:SetHeight(math.max(58, measuredMetaHeight))
+    ApplyMeasuredBannerHeight(metaWrap, metaTitle, metaText, 58)
 
     local contentDivider = panel:CreateTexture(nil, "BORDER")
     contentDivider:SetPoint("TOPLEFT", metaWrap, "BOTTOMLEFT", 0, -8)
@@ -1490,24 +1460,12 @@ function LogbookUI:CreateAchievementsPanel(mainFrame)
     gridContent:SetHeight(1)
     gridScroll:SetScrollChild(gridContent)
 
-    contentArea:SetScript("OnSizeChanged", function(self_)
-        local width = math.max(1, (self_:GetWidth() or 0) - 8)
-        gridContent:SetWidth(width)
+    AttachContentWidthSync(contentArea, gridContent, function()
         if panel:IsShown() then
             self:RefreshAchievements()
         end
     end)
-
-    gridScroll:SetScript("OnMouseWheel", function(self_, delta)
-        local current = self_:GetVerticalScroll() or 0
-        local step = 32
-        local maxScroll = math.max(0, (gridContent:GetHeight() or 0) - (self_:GetHeight() or 0))
-        if delta > 0 then
-            self_:SetVerticalScroll(math.max(0, current - step))
-        else
-            self_:SetVerticalScroll(math.min(maxScroll, current + step))
-        end
-    end)
+    AttachWheelScroll(gridScroll, gridContent, 32)
 
     local empty = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     empty:SetPoint("CENTER", panel, "CENTER", 0, -12)
@@ -1522,9 +1480,21 @@ function LogbookUI:CreateAchievementsPanel(mainFrame)
     end)
 
     panel:SetScript("OnHide", function()
-        if self.achievementDetailOverlay and self.achievementDetailOverlay.Hide then
-            self.achievementDetailOverlay:Hide()
+        local overlay = self.achievementDetailOverlay
+        if not overlay then
+            return
         end
+        if overlay.animIn and overlay.animIn.IsPlaying and overlay.animIn:IsPlaying() then
+            overlay.animIn:Stop()
+        end
+        if overlay.shineGroup and overlay.shineGroup.IsPlaying and overlay.shineGroup:IsPlaying() then
+            overlay.shineGroup:Stop()
+        end
+        if overlay.iconPulse and overlay.iconPulse.IsPlaying and overlay.iconPulse:IsPlaying() then
+            overlay.iconPulse:Stop()
+        end
+        overlay:EnableMouse(false)
+        overlay:Hide()
     end)
 
     self:EnsureAchievementDetailOverlay()
@@ -1568,22 +1538,25 @@ function LogbookUI:EnsureAchievementDetailOverlay()
     overlay:SetPoint("BOTTOMRIGHT", self.achievementPanel, "BOTTOMRIGHT", 0, 0)
     overlay:SetFrameStrata(self.achievementPanel:GetFrameStrata() or "FULLSCREEN_DIALOG")
     overlay:SetFrameLevel((self.achievementPanel:GetFrameLevel() or 1) + 60)
+    -- Focus-lock layer: consume clicks outside the card so only explicit close
+    -- actions dismiss the modal.
     overlay:EnableMouse(true)
     overlay:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8X8",
     })
     overlay:SetBackdropColor(0, 0, 0, 0.72)
+    overlay:SetAlpha(0)
     overlay:Hide()
 
     local card = CreateFrame("Frame", nil, overlay, "BackdropTemplate")
     card:SetPoint("CENTER")
     card:SetSize(560, 320)
-    card:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-        insets = { left = 1, right = 1, top = 1, bottom = 1 },
-    })
+    -- Keep the modal card interactive while swallowing clicks.
+    card:EnableMouse(true)
+    if card.SetPropagateMouseClicks then
+        card:SetPropagateMouseClicks(false)
+    end
+    card:SetBackdrop(STANDARD_BACKDROP)
     card:SetBackdropColor(0.08, 0.07, 0.05, 0.98)
     card:SetBackdropBorderColor(0.55, 0.45, 0.26, 0.95)
 
@@ -1596,19 +1569,38 @@ function LogbookUI:EnsureAchievementDetailOverlay()
     local bodyWrap = CreateFrame("Frame", nil, card, "BackdropTemplate")
     bodyWrap:SetPoint("TOPLEFT", card, "TOPLEFT", 12, -36)
     bodyWrap:SetPoint("BOTTOMRIGHT", card, "BOTTOMRIGHT", -12, 44)
-    bodyWrap:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-        insets = { left = 1, right = 1, top = 1, bottom = 1 },
-    })
+    bodyWrap:SetBackdrop(STANDARD_BACKDROP)
     bodyWrap:SetBackdropColor(0.08, 0.07, 0.05, 1.0)
     bodyWrap:SetBackdropBorderColor(0.40, 0.34, 0.22, 0.95)
+    -- Contain the shine burst to the body area so its scale animation can
+    -- never bleed past the card into the rest of the screen.
+    if bodyWrap.SetClipsChildren then
+        bodyWrap:SetClipsChildren(true)
+    end
+
+    local goldCol = (T and T.col and T.col.gold) or { r = 0.91, g = 0.78, b = 0.45 }
+    local goldBrightCol = (T and T.col and T.col.goldBright) or { r = 0.96, g = 0.89, b = 0.65 }
 
     local icon = bodyWrap:CreateTexture(nil, "ARTWORK")
     icon:SetSize(64, 64)
     icon:SetPoint("TOPLEFT", bodyWrap, "TOPLEFT", 10, -10)
     icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+
+    -- Echoes the icon ring + shine on the achievement-earned popup, so
+    -- opening a tile's detail feels like the same "achievement" moment.
+    local iconRing = bodyWrap:CreateTexture(nil, "BORDER")
+    iconRing:SetPoint("CENTER", icon, "CENTER", 0, 0)
+    iconRing:SetSize(76, 76)
+    iconRing:SetTexture("Interface\\Common\\WhiteIconFrame")
+    iconRing:SetVertexColor(goldCol.r, goldCol.g, goldCol.b, 1)
+
+    local shine = bodyWrap:CreateTexture(nil, "OVERLAY")
+    shine:SetPoint("CENTER", icon, "CENTER", 0, 0)
+    shine:SetSize(64 * 1.7, 64 * 1.7)
+    shine:SetTexture("Interface\\Cooldown\\star4")
+    shine:SetBlendMode("ADD")
+    shine:SetVertexColor(goldBrightCol.r, goldBrightCol.g, goldBrightCol.b, 1)
+    shine:SetAlpha(0)
 
     local name = bodyWrap:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     name:SetPoint("TOPLEFT", icon, "TOPRIGHT", 12, -2)
@@ -1634,6 +1626,13 @@ function LogbookUI:EnsureAchievementDetailOverlay()
     detail:SetJustifyH("LEFT")
     detail:SetJustifyV("TOP")
 
+    -- Small gold corner ornament, matching the achievement-earned popup and
+    -- the main window's own chrome.
+    if T and T.Diamond then
+        local ornament = T.Diamond(card, 8, goldCol)
+        ornament:SetPoint("TOPLEFT", card, "TOPLEFT", 8, -8)
+    end
+
     local closeX = CreateFrame("Button", nil, card)
     closeX:SetSize(20, 20)
     closeX:SetPoint("TOPRIGHT", card, "TOPRIGHT", -8, -8)
@@ -1641,31 +1640,137 @@ function LogbookUI:EnsureAchievementDetailOverlay()
     closeXText:SetPoint("CENTER")
     closeXText:SetText("x")
     closeXText:SetTextColor(0.95, 0.90, 0.75)
-    closeX:SetScript("OnClick", function() overlay:Hide() end)
+    closeX:SetScript("OnClick", function() self:CloseAchievementDetail() end)
 
     local close = CreateFrame("Button", nil, card)
     close:SetSize(120, 24)
     close:SetPoint("BOTTOMRIGHT", card, "BOTTOMRIGHT", -12, 12)
     SkinEpithetButton(close)
     close.label:SetText((L and L["SPOT_ACHV_DETAIL_CLOSE"]) or "Close")
-    close:SetScript("OnClick", function() overlay:Hide() end)
+    close:SetScript("OnClick", function() self:CloseAchievementDetail() end)
 
-    overlay:SetScript("OnMouseDown", function(self_, button)
-        if button == "LeftButton" then
-            self_:Hide()
-        end
-    end)
-    card:SetScript("OnMouseDown", function()
-        -- Keep clicks on the modal card from dismissing via overlay.
-    end)
+    overlay:SetScript("OnMouseDown", function() end)
+    overlay:SetScript("OnMouseUp", function() end)
+    card:SetScript("OnMouseDown", function() end)
+    card:SetScript("OnMouseUp", function() end)
+
+    -- Entrance fade: the dimmed backdrop and card (which inherits its
+    -- parent's alpha) fade in together.
+    local animIn = overlay:CreateAnimationGroup()
+    -- Without this, the overlay's alpha reverts to its pre-animation value
+    -- (0, set above) the instant the group finishes, so it fades in and then
+    -- immediately vanishes again.
+    animIn:SetToFinalAlpha(true)
+    local fadeIn = animIn:CreateAnimation("Alpha")
+    fadeIn:SetFromAlpha(0)
+    fadeIn:SetToAlpha(1)
+    fadeIn:SetDuration(0.12)
+    fadeIn:SetSmoothing("OUT")
+
+    -- Kept deliberately subtle and contained near the icon (see
+    -- bodyWrap:SetClipsChildren above) rather than a big screen-filling burst.
+    local shineGroup = shine:CreateAnimationGroup()
+    shineGroup:SetToFinalAlpha(true)
+    local shineIn = shineGroup:CreateAnimation("Alpha")
+    shineIn:SetFromAlpha(0)
+    shineIn:SetToAlpha(0.72)
+    shineIn:SetDuration(0.08)
+    shineIn:SetOrder(1)
+    shineIn:SetSmoothing("OUT")
+    -- "IN" (slow start, fast finish) rather than "OUT": with the 0.08s alpha
+    -- ramp above, "OUT" grows most of the way while still nearly invisible,
+    -- so by the time you can see it, it already looks fully grown. Starting
+    -- slow keeps it visibly small while it fades in, then it grows into
+    -- place after that, which actually reads as "starts small, gets bigger".
+    local shineScale = shineGroup:CreateAnimation("Scale")
+    shineScale:SetOrigin("CENTER", 0, 0)
+    shineScale:SetScaleFrom(0.6, 0.6)
+    shineScale:SetScaleTo(1.05, 1.05)
+    shineScale:SetDuration(0.22)
+    shineScale:SetOrder(1)
+    shineScale:SetSmoothing("IN")
+    -- Deliberately longer than the grow/fade-in above: it finishes growing
+    -- quickly, then keeps turning at full size for a slower, steadier spin
+    -- before the twinkle kicks in.
+    local shineSpin = shineGroup:CreateAnimation("Rotation")
+    shineSpin:SetOrigin("CENTER", 0, 0)
+    shineSpin:SetDegrees(360)
+    shineSpin:SetDuration(0.55)
+    shineSpin:SetOrder(1)
+
+    -- Twinkle: two quick brightness pulses once it's fully grown.
+    local twinkleDim1 = shineGroup:CreateAnimation("Alpha")
+    twinkleDim1:SetFromAlpha(0.72)
+    twinkleDim1:SetToAlpha(0.30)
+    twinkleDim1:SetDuration(0.06)
+    twinkleDim1:SetOrder(2)
+    local twinkleBright1 = shineGroup:CreateAnimation("Alpha")
+    twinkleBright1:SetFromAlpha(0.30)
+    twinkleBright1:SetToAlpha(0.85)
+    twinkleBright1:SetDuration(0.06)
+    twinkleBright1:SetOrder(3)
+    local twinkleDim2 = shineGroup:CreateAnimation("Alpha")
+    twinkleDim2:SetFromAlpha(0.85)
+    twinkleDim2:SetToAlpha(0.45)
+    twinkleDim2:SetDuration(0.06)
+    twinkleDim2:SetOrder(4)
+    local twinkleBright2 = shineGroup:CreateAnimation("Alpha")
+    twinkleBright2:SetFromAlpha(0.45)
+    twinkleBright2:SetToAlpha(0.72)
+    twinkleBright2:SetDuration(0.06)
+    twinkleBright2:SetOrder(5)
+
+    -- Dissipate: fade out while drifting gently upward. Kept to a small
+    -- offset since bodyWrap clips its children close to the icon (see
+    -- above) - a bigger drift would visibly get cut off at the clip edge.
+    local shineOut = shineGroup:CreateAnimation("Alpha")
+    shineOut:SetFromAlpha(0.72)
+    shineOut:SetToAlpha(0)
+    shineOut:SetDuration(0.26)
+    shineOut:SetOrder(6)
+    shineOut:SetSmoothing("IN")
+    local shineDrift = shineGroup:CreateAnimation("Translation")
+    shineDrift:SetOffset(0, 10)
+    shineDrift:SetDuration(0.26)
+    shineDrift:SetOrder(6)
+    shineDrift:SetSmoothing("OUT")
+
+    -- Icon pulse: plays alongside the shine burst above - grows past full
+    -- size, shrinks back past normal, then settles, like a little heartbeat.
+    local iconPulse = icon:CreateAnimationGroup()
+    local iconGrow = iconPulse:CreateAnimation("Scale")
+    iconGrow:SetOrigin("CENTER", 0, 0)
+    iconGrow:SetScaleFrom(1, 1)
+    iconGrow:SetScaleTo(1.15, 1.15)
+    iconGrow:SetDuration(0.16)
+    iconGrow:SetOrder(1)
+    iconGrow:SetSmoothing("OUT")
+    local iconShrink = iconPulse:CreateAnimation("Scale")
+    iconShrink:SetOrigin("CENTER", 0, 0)
+    iconShrink:SetScaleFrom(1.15, 1.15)
+    iconShrink:SetScaleTo(0.94, 0.94)
+    iconShrink:SetDuration(0.14)
+    iconShrink:SetOrder(2)
+    iconShrink:SetSmoothing("IN")
+    local iconSettle = iconPulse:CreateAnimation("Scale")
+    iconSettle:SetOrigin("CENTER", 0, 0)
+    iconSettle:SetScaleFrom(0.94, 0.94)
+    iconSettle:SetScaleTo(1, 1)
+    iconSettle:SetDuration(0.12)
+    iconSettle:SetOrder(3)
+    iconSettle:SetSmoothing("OUT")
 
     overlay.card = card
     overlay.icon = icon
+    overlay.shine = shine
     overlay.heading = heading
     overlay.name = name
     overlay.desc = desc
     overlay.status = status
     overlay.detail = detail
+    overlay.animIn = animIn
+    overlay.shineGroup = shineGroup
+    overlay.iconPulse = iconPulse
 
     self.achievementDetailOverlay = overlay
     return overlay
@@ -1702,7 +1807,7 @@ function LogbookUI:OpenAchievementDetail(data)
         detail = ""
     else
         if data.earned and data.earnedText then
-            status = (L and L["SPOT_ACHV_EARNED_FMT"] and string.format(L["SPOT_ACHV_EARNED_FMT"], data.earnedText)) or ("Earned " .. data.earnedText)
+            status = FormatAchievementEarnedText(data.earnedText)
             if data.secret and data.secretEarned then
                 status = status .. " " .. SecretEarnedSuffixText()
             end
@@ -1733,7 +1838,52 @@ function LogbookUI:OpenAchievementDetail(data)
     overlay.desc:SetText(desc)
     overlay.status:SetText(status)
     overlay.detail:SetText(detail)
+
+    self:ShowAchievementDetailOverlay(overlay)
+end
+
+function LogbookUI:ShowAchievementDetailOverlay(overlay)
+    if not overlay then
+        return
+    end
+
     overlay:Show()
+
+    if overlay.animIn then
+        overlay.animIn:Stop()
+        overlay.animIn:Play()
+    else
+        overlay:SetAlpha(1)
+    end
+
+    if overlay.shineGroup then
+        overlay.shineGroup:Stop()
+        overlay.shineGroup:Play()
+    end
+
+    if overlay.iconPulse then
+        overlay.iconPulse:Stop()
+        overlay.iconPulse:Play()
+    end
+end
+
+function LogbookUI:CloseAchievementDetail()
+    local overlay = self.achievementDetailOverlay
+    if not overlay or not overlay:IsShown() then
+        return
+    end
+
+    if overlay.animIn and overlay.animIn.IsPlaying and overlay.animIn:IsPlaying() then
+        overlay.animIn:Stop()
+    end
+    if overlay.shineGroup and overlay.shineGroup.IsPlaying and overlay.shineGroup:IsPlaying() then
+        overlay.shineGroup:Stop()
+    end
+    if overlay.iconPulse and overlay.iconPulse.IsPlaying and overlay.iconPulse:IsPlaying() then
+        overlay.iconPulse:Stop()
+    end
+    overlay:EnableMouse(false)
+    overlay:Hide()
 end
 
 function LogbookUI:AcquireAchievementTile(index)
@@ -1741,12 +1891,7 @@ function LogbookUI:AcquireAchievementTile(index)
     if tile then return tile end
 
     tile = CreateFrame("Button", nil, self.achievementGridContent, "BackdropTemplate")
-    tile:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-        insets = { left = 1, right = 1, top = 1, bottom = 1 },
-    })
+    tile:SetBackdrop(STANDARD_BACKDROP)
     tile:SetBackdropColor(0.11, 0.09, 0.06, 0.92)
     tile:SetBackdropBorderColor(0.55, 0.45, 0.26, 0.55)
 
@@ -1758,12 +1903,7 @@ function LogbookUI:AcquireAchievementTile(index)
     local statePlate = CreateFrame("Frame", nil, tile, "BackdropTemplate")
     statePlate:SetSize(22, 22)
     statePlate:SetPoint("TOPLEFT", tile, "TOPLEFT", 4, -4)
-    statePlate:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-        insets = { left = 1, right = 1, top = 1, bottom = 1 },
-    })
+    statePlate:SetBackdrop(STANDARD_BACKDROP)
     statePlate:SetBackdropColor(0.02, 0.02, 0.02, 0.85)
     statePlate:SetBackdropBorderColor(0.72, 0.58, 0.28, 0.95)
     state:SetParent(statePlate)
@@ -1779,12 +1919,7 @@ function LogbookUI:AcquireAchievementTile(index)
     local secretBadge = CreateFrame("Frame", nil, tile, "BackdropTemplate")
     secretBadge:SetSize(22, 14)
     secretBadge:SetPoint("TOPRIGHT", tile, "TOPRIGHT", -4, -4)
-    secretBadge:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-        insets = { left = 1, right = 1, top = 1, bottom = 1 },
-    })
+    secretBadge:SetBackdrop(STANDARD_BACKDROP)
     secretBadge:SetBackdropColor(0.10, 0.08, 0.05, 0.92)
     secretBadge:SetBackdropBorderColor(0.94, 0.80, 0.40, 0.95)
     secretBadge:Hide()
@@ -2037,7 +2172,7 @@ function LogbookUI:ConfigureEntryTooltip(owner, data)
 
         if data.earned and data.earnedText then
             GameTooltip:AddLine(" ")
-            GameTooltip:AddLine((L and L["SPOT_ACHV_EARNED_FMT"] and string.format(L["SPOT_ACHV_EARNED_FMT"], data.earnedText)) or ("Earned " .. data.earnedText), 0.88, 0.86, 0.74, true)
+            GameTooltip:AddLine(FormatAchievementEarnedText(data.earnedText), 0.88, 0.86, 0.74, true)
         end
 
         if data.secret and data.secretEarned then
@@ -2190,7 +2325,7 @@ function LogbookUI:RefreshRows(entries)
 
                 local right = data.groupLabel or ""
                 if data.earned and data.earnedText then
-                    right = (L and L["SPOT_ACHV_EARNED_FMT"] and string.format(L["SPOT_ACHV_EARNED_FMT"], data.earnedText)) or ("Earned " .. data.earnedText)
+                    right = FormatAchievementEarnedText(data.earnedText)
                 elseif data.progressText and data.progressText ~= "" then
                     right = data.progressText
                 end
@@ -2202,37 +2337,15 @@ function LogbookUI:RefreshRows(entries)
             row.title:SetText(data.record.text or "")
             row.title:SetTextColor(r, g, b)
 
+            ApplySpottedStateIcons(row, data)
+
+            local source = data.record.kind or data.record.cat or ""
             if data.isSpotted then
-                TrySetTexture(row.state, CHECK_ICON)
-                row.state:SetVertexColor(0.90, 0.74, 0.30, 1.0)
-                local classCoords = GetClassCoords(data.log and data.log.classTag)
-                if classCoords then
-                    row.portrait:SetTexCoord(classCoords[1], classCoords[2], classCoords[3], classCoords[4])
-                    row.portrait:Show()
-                else
-                    row.portrait:Hide()
-                end
-
-                if ApplyRaceTexture(row.race, row.raceBlend, data.log and data.log.raceTag, data.log and data.log.sex) then
-                    row.race:Show()
-                else
-                    row.race:Hide()
-                    if row.raceBlend then row.raceBlend:Hide() end
-                end
-
-                local source = data.record.kind or data.record.cat or ""
                 local seen = BuildDateString(data.log and data.log.firstSeen)
                 local playerName = data.log and (data.log.lastName or data.log.firstName) or nil
                 local tail = playerName and (seen .. " - " .. playerName) or seen
                 row.meta:SetText((source ~= "" and (source .. " - " .. tail)) or tail)
             else
-                TrySetTexture(row.state, LOCK_ICON)
-                row.state:SetVertexColor(0.56, 0.52, 0.45, 1.0)
-                row.portrait:Hide()
-                row.race:Hide()
-                if row.raceBlend then row.raceBlend:Hide() end
-
-                local source = data.record.kind or data.record.cat or ""
                 row.meta:SetText((source ~= "" and source) or ((L and L["SPOTTING_NOT_SPOTTED_YET"]) or "Not spotted yet"))
             end
         end
@@ -2249,12 +2362,7 @@ function LogbookUI:AcquireTile(index)
     if tile then return tile end
 
     tile = CreateFrame("Button", nil, self.gridContent, "BackdropTemplate")
-    tile:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-        insets = { left = 1, right = 1, top = 1, bottom = 1 },
-    })
+    tile:SetBackdrop(STANDARD_BACKDROP)
     tile:SetBackdropColor(0.11, 0.09, 0.06, 0.92)
     tile:SetBackdropBorderColor(0.55, 0.45, 0.26, 0.55)
 
@@ -2329,30 +2437,11 @@ function LogbookUI:RefreshTiles(entries)
         tile.title:SetText(data.record.text or "")
         tile.title:SetTextColor(r, g, b)
 
-        if data.isSpotted then
-            TrySetTexture(tile.state, CHECK_ICON)
-            tile.state:SetVertexColor(0.90, 0.74, 0.30, 1.0)
-            local classCoords = GetClassCoords(data.log and data.log.classTag)
-            if classCoords then
-                tile.portrait:SetTexCoord(classCoords[1], classCoords[2], classCoords[3], classCoords[4])
-                tile.portrait:Show()
-            else
-                tile.portrait:Hide()
-            end
+        ApplySpottedStateIcons(tile, data)
 
-            if ApplyRaceTexture(tile.race, tile.raceBlend, data.log and data.log.raceTag, data.log and data.log.sex) then
-                tile.race:Show()
-            else
-                tile.race:Hide()
-                if tile.raceBlend then tile.raceBlend:Hide() end
-            end
+        if data.isSpotted then
             tile.meta:SetText(BuildDateString(data.log and data.log.firstSeen))
         else
-            TrySetTexture(tile.state, LOCK_ICON)
-            tile.state:SetVertexColor(0.56, 0.52, 0.45, 1.0)
-            tile.portrait:Hide()
-            tile.race:Hide()
-            if tile.raceBlend then tile.raceBlend:Hide() end
             tile.meta:SetText((L and L["SPOTTING_NOT_SPOTTED"]) or "Remaining")
         end
     end
@@ -2388,7 +2477,6 @@ function LogbookUI:Refresh()
     end
 
     local enabled = ns.IsTitleSpottingEnabled and ns.IsTitleSpottingEnabled() or false
-    self.stateWasEnabled = enabled
 
     if ns.TitleData and ns.TitleData.Scan then
         ns.TitleData:Scan()

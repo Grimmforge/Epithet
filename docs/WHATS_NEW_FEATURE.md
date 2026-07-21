@@ -89,44 +89,63 @@ Behavior:
 
 ## Content format support
 
-The body renderer supports these patterns per line:
+The body parser supports these patterns per line (blank lines are ignored -
+spacing is automatic, see below):
 
 - '# Heading 1'
 - '## Heading 2'
+- '* Bullet line' (single leading star + space; consecutive bullets are
+  grouped tighter than other block transitions)
 - Plain paragraph lines
 - Inline bold using double stars
-- Inline italics using single stars
+- Inline emphasis using single stars (rendered as a colour tint, not a slanted
+  font - WoW has no italic variant of the addon's body font loaded)
 - Image line using markdown image syntax:
-  - ![alt](texturePath)
+  - `![alt](texturePath)` - defaults to a 96x96 box
+  - `![alt](texturePath =WIDTHxHEIGHT)` - pins an explicit display size, for
+    non-square art. The `alt` text itself is discarded; it exists only for
+    author readability.
 
 Notes:
 
-- Rendering is converted into SimpleHTML tags
-- Image lines are rendered through WoW texture tag output
+- Each line becomes a real widget (FontString or Texture), not a markup tag
+- Every block type has a fixed gap-before value (see `BLOCK_STYLE` and
+  `IMAGE_GAP_BEFORE` in Core/WhatsNew.lua), so headings and images always get
+  breathing room regardless of blank-line placement in the source
 
 ## Rendering implementation notes
 
-The feature uses a SimpleHTML widget.
+The feature renders each parsed block as a pooled `FontString` or `Texture`
+positioned directly with `SetPoint`, stacked top-to-bottom inside a plain
+`Frame` scroll child - there is no HTML widget involved.
 
-Important API constraints for SimpleHTML in WoW:
+This replaced an earlier SimpleHTML-based implementation. `SimpleHTML:SetText`
+only parses its input as HTML if the whole document is "well-formed" by its
+own undocumented rules (only `&amp;`/`&lt;`/`&gt;`/`&quot;` are supported
+entities, and even a single bare `"` character anywhere in body text - not
+just inside a tag attribute - was enough to make it silently render the raw
+markup as plain text, with no error to debug against). That fragility class
+of bug is why the widget was dropped rather than patched further:
 
-- SetJustifyH requires textType and justification
-- SetJustifyV requires textType and justification
-- SetSpacing requires textType and spacing
-- SetFont requires textType, font file, size, and flags
+- `BuildBlocks(body)` parses the markdown-like source into a flat list of
+  `{ type, text/path, ... }` block descriptors - no markup string is ever
+  built or escaped
+- `RenderInlineColor` turns `**bold**`/`*emphasis*` into WoW's native
+  `|cAARRGGBB...|r` colour-code runs, which FontStrings support natively with
+  no special-casing
+- `WhatsNew:RenderBody` walks the blocks, acquiring pooled widgets via
+  `AcquireTextWidget`/`AcquireImageWidget` and positioning each one with an
+  explicit Y cursor, then hides any pooled widgets left over from a previous,
+  longer body
 
-This is stricter than normal FontString APIs and is a common source of runtime regressions.
+## Height calculation
 
-## Height calculation and client compatibility
-
-Some clients do not expose GetStringHeight on SimpleHTML.
-
-To remain stable:
-
-- Runtime attempts GetStringHeight only when method exists
-- If unavailable or non-positive, a deterministic estimator computes body height from source lines
-
-This prevents nil-call errors and keeps scroll sizing usable across client variants.
+Total content height is the sum of each block's actual measured height
+(`FontString:GetStringHeight()` for text, the block's own height for images)
+plus each block's fixed gap-before value. `WhatsNew:RenderBody` returns this
+total, which `Show()` uses to size the scroll child - no separate estimator
+or client-compatibility fallback is needed, since this only depends on plain
+`FontString`/`Texture` APIs rather than SimpleHTML-specific ones.
 
 ## How to add a new release entry
 
@@ -154,11 +173,25 @@ If popup does not appear:
 
 If popup errors at runtime:
 
-- Re-check SimpleHTML API calls use textType arguments
-- Ensure SetFont includes a flags argument
-- Ensure height path handles clients without GetStringHeight
+- Check for a typo in a block-parsing pattern in `BuildBlocks` (Core/WhatsNew.lua)
+- Confirm `BLOCK_STYLE` has an entry for every block type `BuildBlocks` can emit
 
-If content appears blank:
+If content appears blank or a line is missing:
 
 - Validate body text in the version file is non-empty
 - Validate image texture paths resolve in-game
+- Custom textures must be power-of-two sized (e.g. 512x256, not 431x259) or
+  the client's texture loader can fail to load them; pad rather than stretch
+  non-square art to avoid distorting it
+- A `.png` reference must include the literal `.png` extension in the path -
+  unlike `.tga`/`.blp`, the client won't infer it
+
+If text renders but looks wrong (missing bold/emphasis, wrong colour):
+
+- Check for an unbalanced (odd) count of `*` characters on the line -
+  `RenderInlineColor` in Core/WhatsNew.lua pairs `**`/`*` markers left-to-right
+  and lazily, so any stray `*` not meant as emphasis will pair with the next
+  real one and swallow everything in between. Note the bullet marker's own
+  leading `*` (and the space after it) is stripped out by `BuildBlocks` before
+  this runs, so it's not a source of stray asterisks - only literal `*`
+  characters inside the body text itself are.
