@@ -308,6 +308,26 @@ function WhatsNew:EnsureDialog()
 
     scroll:SetScrollChild(body)
 
+    -- Bottom cutoff marker: draw in a dedicated overlay frame with higher
+    -- frame level than the scroll child so it always sits above content.
+    local scrollCutoffOverlay = CreateFrame("Frame", nil, frame)
+    scrollCutoffOverlay:SetPoint("TOPLEFT", scroll, "TOPLEFT", 0, 0)
+    scrollCutoffOverlay:SetPoint("BOTTOMRIGHT", scroll, "BOTTOMRIGHT", 0, 0)
+    scrollCutoffOverlay:SetFrameStrata(frame:GetFrameStrata())
+    scrollCutoffOverlay:SetFrameLevel((body:GetFrameLevel() or frame:GetFrameLevel() or 1) + 20)
+
+    local scrollCutoffBottom = scrollCutoffOverlay:CreateTexture(nil, "OVERLAY")
+    scrollCutoffBottom:SetPoint("BOTTOMLEFT", scrollCutoffOverlay, "BOTTOMLEFT", 0, 0)
+    scrollCutoffBottom:SetPoint("BOTTOMRIGHT", scrollCutoffOverlay, "BOTTOMRIGHT", 0, 0)
+    scrollCutoffBottom:SetHeight(1)
+    scrollCutoffBottom:SetColorTexture(0.95, 0.82, 0.48, 0.95)
+
+    local scrollCutoffBottomSoft = scrollCutoffOverlay:CreateTexture(nil, "OVERLAY")
+    scrollCutoffBottomSoft:SetPoint("BOTTOMLEFT", scrollCutoffBottom, "TOPLEFT", 0, 0)
+    scrollCutoffBottomSoft:SetPoint("BOTTOMRIGHT", scrollCutoffBottom, "TOPRIGHT", 0, 0)
+    scrollCutoffBottomSoft:SetHeight(1)
+    scrollCutoffBottomSoft:SetColorTexture(0.95, 0.82, 0.48, 0.35)
+
     local dismiss = CreateFrame("Button", nil, frame)
     dismiss:SetSize(220, 24)
     dismiss:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -12, 14)

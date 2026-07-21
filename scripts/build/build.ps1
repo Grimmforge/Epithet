@@ -80,7 +80,9 @@ function Build-Variant {
     Copy-Item (Join-Path $root "Core") -Destination (Join-Path $addonDir "Core") -Recurse
     Copy-Item (Join-Path $root "data") -Destination (Join-Path $addonDir "data") -Recurse
     Copy-Item (Join-Path $root "Locales") -Destination (Join-Path $addonDir "Locales") -Recurse
+    Copy-Item (Join-Path $root "Spotting") -Destination (Join-Path $addonDir "Spotting") -Recurse
     Copy-Item (Join-Path $root "UI") -Destination (Join-Path $addonDir "UI") -Recurse
+    Copy-Item (Join-Path $root "WhatsNew") -Destination (Join-Path $addonDir "WhatsNew") -Recurse
     Copy-Item (Join-Path $root "icons") -Destination (Join-Path $addonDir "icons") -Recurse
 
     # Copy libs if present (populated by .pkgmeta or manual install)

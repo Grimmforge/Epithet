@@ -20,7 +20,9 @@ Every title-bearer you walk past (and click on) now gets quietly stored away on 
 * Oddly, not necessary details of what class and race you first saw waring it, totally necessary.
 * Bump into the same title again later and the count just ticks up in the background, quietly. No judgement. Okay, some judgement.
 
+
 ![Title spotted](Interface\AddOns\Epithet\WhatsNew\Versions\v1_2_0\title-spotting.png =460x230)
+
 
 ## 76 achievements for a hobby you didn't know you had
 
