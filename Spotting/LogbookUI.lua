@@ -1550,7 +1550,9 @@ function LogbookUI:EnsureAchievementDetailOverlay()
 
     local card = CreateFrame("Frame", nil, overlay, "BackdropTemplate")
     card:SetPoint("CENTER")
-    card:SetSize(560, 320)
+    -- Height is a placeholder only - ResizeAchievementDetailCard sets the
+    -- real height from content every time the card is opened.
+    card:SetSize(480, 260)
     -- Keep the modal card interactive while swallowing clicks.
     card:EnableMouse(true)
     if card.SetPropagateMouseClicks then
@@ -1560,11 +1562,26 @@ function LogbookUI:EnsureAchievementDetailOverlay()
     card:SetBackdropColor(0.08, 0.07, 0.05, 0.98)
     card:SetBackdropBorderColor(0.55, 0.45, 0.26, 0.95)
 
+    local goldCol = (T and T.col and T.col.gold) or { r = 0.91, g = 0.78, b = 0.45 }
+    local goldBrightCol = (T and T.col and T.col.goldBright) or { r = 0.96, g = 0.89, b = 0.65 }
+
+    -- Left room at the front of the heading for the diamond ornament below,
+    -- which anchors to (and vertically centers against) the heading itself.
     local heading = card:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    heading:SetPoint("TOPLEFT", 14, -12)
-    heading:SetPoint("TOPRIGHT", -40, -12)
+    heading:SetPoint("TOPLEFT", 30, -12)
+    heading:SetPoint("TOPRIGHT", -42, -12)
     heading:SetJustifyH("LEFT")
     heading:SetText((L and L["SPOT_ACHV_DETAIL_TITLE"]) or "Achievement Details")
+
+    -- Small gold corner ornament, matching the achievement-earned popup and
+    -- the main window's own chrome. Anchored to the heading's LEFT/RIGHT
+    -- points (which are always vertically centered on the frame) rather than
+    -- an independently guessed offset, so it can't drift out of line with
+    -- the title text again.
+    if T and T.Diamond then
+        local ornament = T.Diamond(card, 8, goldCol)
+        ornament:SetPoint("RIGHT", heading, "LEFT", -10, 0)
+    end
 
     local bodyWrap = CreateFrame("Frame", nil, card, "BackdropTemplate")
     bodyWrap:SetPoint("TOPLEFT", card, "TOPLEFT", 12, -36)
@@ -1577,9 +1594,6 @@ function LogbookUI:EnsureAchievementDetailOverlay()
     if bodyWrap.SetClipsChildren then
         bodyWrap:SetClipsChildren(true)
     end
-
-    local goldCol = (T and T.col and T.col.gold) or { r = 0.91, g = 0.78, b = 0.45 }
-    local goldBrightCol = (T and T.col and T.col.goldBright) or { r = 0.96, g = 0.89, b = 0.65 }
 
     local icon = bodyWrap:CreateTexture(nil, "ARTWORK")
     icon:SetSize(64, 64)
@@ -1626,20 +1640,23 @@ function LogbookUI:EnsureAchievementDetailOverlay()
     detail:SetJustifyH("LEFT")
     detail:SetJustifyV("TOP")
 
-    -- Small gold corner ornament, matching the achievement-earned popup and
-    -- the main window's own chrome.
-    if T and T.Diamond then
-        local ornament = T.Diamond(card, 8, goldCol)
-        ornament:SetPoint("TOPLEFT", card, "TOPLEFT", 8, -8)
-    end
-
+    -- Sized well past the old 20px box (a common accessibility minimum for
+    -- click targets is ~24-28px) and given its own plate + hover feedback so
+    -- it reads clearly as a button rather than a stray glyph.
     local closeX = CreateFrame("Button", nil, card)
-    closeX:SetSize(20, 20)
-    closeX:SetPoint("TOPRIGHT", card, "TOPRIGHT", -8, -8)
+    closeX:SetSize(28, 28)
+    closeX:SetPoint("TOPRIGHT", card, "TOPRIGHT", -6, -6)
     local closeXText = closeX:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     closeXText:SetPoint("CENTER")
     closeXText:SetText("x")
-    closeXText:SetTextColor(0.95, 0.90, 0.75)
+    closeXText:SetScale(2)
+    closeXText:SetTextColor(0.91, 0.78, 0.45)
+    closeX:SetScript("OnEnter", function()
+        closeXText:SetTextColor(1.0, 0.92, 0.70)
+    end)
+    closeX:SetScript("OnLeave", function()
+        closeXText:SetTextColor(0.91, 0.78, 0.45)
+    end)
     closeX:SetScript("OnClick", function() self:CloseAchievementDetail() end)
 
     local close = CreateFrame("Button", nil, card)
@@ -1781,6 +1798,11 @@ function LogbookUI:OpenAchievementDetail(data)
     local overlay = self:EnsureAchievementDetailOverlay()
     if not overlay then return end
 
+    -- Only a genuinely earned (and unmasked) achievement gets the full-colour
+    -- icon and the celebration animations below - matches how the grid tiles
+    -- already distinguish earned/unearned.
+    local earned = data.earned and not data.masked
+
     local iconPath
     if data.masked then
         iconPath = "Interface\\Icons\\inv_misc_questionmark"
@@ -1791,8 +1813,13 @@ function LogbookUI:OpenAchievementDetail(data)
     overlay.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
     if data.masked then
         overlay.icon:SetVertexColor(0.66, 0.62, 0.55, 1.0)
-    else
+    elseif earned then
         overlay.icon:SetVertexColor(1, 1, 1, 1)
+    else
+        overlay.icon:SetVertexColor(0.72, 0.72, 0.72, 0.95)
+    end
+    if overlay.icon.SetDesaturated then
+        overlay.icon:SetDesaturated(not earned)
     end
 
     local name = data.name or ""
@@ -1839,10 +1866,32 @@ function LogbookUI:OpenAchievementDetail(data)
     overlay.status:SetText(status)
     overlay.detail:SetText(detail)
 
-    self:ShowAchievementDetailOverlay(overlay)
+    self:ResizeAchievementDetailCard(overlay)
+    self:ShowAchievementDetailOverlay(overlay, earned)
 end
 
-function LogbookUI:ShowAchievementDetailOverlay(overlay)
+-- Shrinks/grows the card to fit whatever text this achievement actually
+-- has, instead of always reserving space for the longest possible entry.
+function LogbookUI:ResizeAchievementDetailCard(overlay)
+    local card = overlay.card
+    if not card then return end
+
+    local textHeight = (overlay.name:GetStringHeight() or 0)
+        + 8 + (overlay.desc:GetStringHeight() or 0)
+        + 10 + (overlay.status:GetStringHeight() or 0)
+        + 8 + (overlay.detail:GetStringHeight() or 0)
+
+    -- The icon + ring column is a fixed size and doesn't shrink with the
+    -- text, so it sets the floor for how short the body can get.
+    local iconColumnHeight = 10 + 76
+
+    local bodyHeight = math.max(iconColumnHeight, textHeight) + 20
+    local cardHeight = bodyHeight + 36 + 44
+    cardHeight = math.max(220, math.min(460, cardHeight))
+    card:SetHeight(cardHeight)
+end
+
+function LogbookUI:ShowAchievementDetailOverlay(overlay, celebrate)
     if not overlay then
         return
     end
@@ -1856,14 +1905,32 @@ function LogbookUI:ShowAchievementDetailOverlay(overlay)
         overlay:SetAlpha(1)
     end
 
-    if overlay.shineGroup then
-        overlay.shineGroup:Stop()
-        overlay.shineGroup:Play()
-    end
-
-    if overlay.iconPulse then
-        overlay.iconPulse:Stop()
-        overlay.iconPulse:Play()
+    if celebrate then
+        if overlay.shineGroup then
+            overlay.shineGroup:Stop()
+            overlay.shineGroup:Play()
+        end
+        if overlay.iconPulse then
+            overlay.iconPulse:Stop()
+            overlay.iconPulse:Play()
+        end
+    else
+        -- Not earned: no shine burst, no icon pulse - just the plain,
+        -- greyed-out icon. Force both back to their neutral resting state in
+        -- case either was left mid-animation from a previous, earned entry.
+        if overlay.shineGroup then
+            overlay.shineGroup:Stop()
+        end
+        if overlay.shine then
+            overlay.shine:SetAlpha(0)
+        end
+        if overlay.iconPulse then
+            -- Playing then immediately stopping snaps the icon back to its
+            -- neutral 100% scale (the first animation's "from" value) without
+            -- it ever visibly running, since no frame renders in between.
+            overlay.iconPulse:Play()
+            overlay.iconPulse:Stop()
+        end
     end
 end
 
