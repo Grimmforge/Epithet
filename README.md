@@ -1,6 +1,6 @@
 # Epithet
 
-A World of Warcraft addon that lets you browse every player title, see how each is earned and how rare it is, track the ones you're still missing — and now, spot titles other players are wearing out in the world.
+A World of Warcraft addon that lets you browse every player title, see how each is earned and how rare it is, track the ones you're still missing, spot titles other players are wearing out in the world, and earn Epithet Achievements along the way.
 
 ## Features
 

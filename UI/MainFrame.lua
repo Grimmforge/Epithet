@@ -715,16 +715,16 @@ function MainFrame:ShowAbout()
     modal:SetBackdropBorderColor(goldCol.r, goldCol.g, goldCol.b, 0.85)
     modal:EnableMouse(true)
 
-    -- Grimmforge logo
+    -- Grimmsforge logo
     local logo = modal:CreateTexture(nil, "ARTWORK")
     logo:SetSize(64, 64)
     logo:SetPoint("TOP", modal, "TOP", 0, -24)
-    logo:SetTexture("Interface\\AddOns\\Epithet\\logo\\grimmforge-logo")
+    logo:SetTexture("Interface\\AddOns\\Epithet\\logo\\grimmsforge-logo")
 
     -- Title
     local title = modal:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
     title:SetPoint("TOP", logo, "BOTTOM", 0, -12)
-    title:SetText("|cffe8c767Grimmforge|r")
+    title:SetText("|cffe8c767Grimmsforge|r")
 
     -- Description
     local desc = modal:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
@@ -735,9 +735,9 @@ function MainFrame:ShowAbout()
     desc:SetSpacing(3)
     desc:SetTextColor(0.78, 0.74, 0.66)
     desc:SetText(
-        "Epithet is crafted by Grimmforge.\n\n" ..
+        "Epithet is crafted by Grimmsforge.\n\n" ..
         "Open-source tools and addons for World of Warcraft.\n\n" ..
-        "|cffe8c767github.com/Grimmforge|r"
+        "|cffe8c767github.com/Grimmsforge|r"
     )
 
     -- Close button

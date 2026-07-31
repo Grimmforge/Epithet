@@ -1,5 +1,5 @@
 ﻿-- SPDX-License-Identifier: Apache-2.0
--- Copyright (c) Grimmforge
+-- Copyright (c) Grimmsforge
 
 local _, ns = ...
 local L = ns.L
