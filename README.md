@@ -135,6 +135,8 @@ libs/
 
 ## Contributing
 
+### By Creating Issues
+
 Found a missing title, incorrect data, or an obtainability change? Open an issue using one of the templates below:
 
 | Template                                                                                                  | When to use                                                          |
@@ -149,6 +151,14 @@ Please include patch notes, in-game screenshots, or official sources as evidence
 
 See [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) for the full version history, and [docs/WHATS_NEW_FEATURE.md](docs/WHATS_NEW_FEATURE.md) for how the in-game What's New system works.
 
-## Licence
+### Pull Requests
+
+It's great to see people enjoying Epithet as an add-on to the extent that they get involved in improving the tool, below are some of Epithets contributors
+
+#### Named Locale Contributors
+
+- [Hubbotu](https://github.com/Hubbotu) - Contributing to the ruRU locale/lang files.
+
+## License
 
 Apache-2.0 license - see [LICENSE](LICENSE).
