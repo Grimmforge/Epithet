@@ -778,16 +778,42 @@ local function CheckTerse(spotted)
     return false
 end
 
-local function CheckLordOfLords(spotted)
-    return CountDistinctTitlesByTextMatch(spotted, "lord") >= TITLE_KEYWORD_THRESHOLD
+-- Keyword achievements match against localised title text, so the search word
+-- must itself be localised. Each entry maps a locale to the word to look for;
+-- adding a language is purely additive (drop in a new locale + word), and an
+-- achievement is automatically enabled only on the locales it has a word for
+-- (see KeywordLocales / the Registry entries below).
+local KEYWORD_ACHIEVEMENTS = {
+    lord_of_lords = { enUS = "lord",   enGB = "lord"   },
+    masterclass   = { enUS = "master", enGB = "master" },
+    slay          = { enUS = "slayer", enGB = "slayer" },
+}
+
+local function LocaleKeyword(id)
+    local map = KEYWORD_ACHIEVEMENTS[id]
+    if not map then return nil end
+    local locale = (GetLocale and GetLocale()) or "enUS"
+    return map[locale]
 end
 
-local function CheckMasterclass(spotted)
-    return CountDistinctTitlesByTextMatch(spotted, "master") >= TITLE_KEYWORD_THRESHOLD
+-- Set of locales an achievement is playable in, derived from its keyword map.
+local function KeywordLocales(id)
+    local set = {}
+    local map = KEYWORD_ACHIEVEMENTS[id]
+    if map then
+        for locale in pairs(map) do
+            set[locale] = true
+        end
+    end
+    return set
 end
 
-local function CheckSlay(spotted)
-    return CountDistinctTitlesByTextMatch(spotted, "slayer") >= TITLE_KEYWORD_THRESHOLD
+local function CheckKeyword(id)
+    return function(spotted)
+        local keyword = LocaleKeyword(id)
+        if not keyword then return false end
+        return CountDistinctTitlesByTextMatch(spotted, keyword) >= TITLE_KEYWORD_THRESHOLD
+    end
 end
 
 local function CheckGladiatorGroupie(spotted)
@@ -1440,9 +1466,10 @@ local function ProgressOverachiever()
     return math.min(n, OVERACHIEVER_THRESHOLD), OVERACHIEVER_THRESHOLD
 end
 
-local function ProgressKeywordSpotting(keyword)
+local function ProgressKeyword(id)
     return function(spotted)
-        local n = CountDistinctTitlesByTextMatch(spotted, keyword)
+        local keyword = LocaleKeyword(id)
+        local n = keyword and CountDistinctTitlesByTextMatch(spotted, keyword) or 0
         return math.min(n, TITLE_KEYWORD_THRESHOLD), TITLE_KEYWORD_THRESHOLD
     end
 end
@@ -1641,9 +1668,9 @@ Registry = {
 
     { id = "quite_a_mouthful", check = CheckQuiteAMouthful, group = "spotting", locales = ENGLISH_LOCALES },
     { id = "terse", check = CheckTerse, group = "spotting", locales = ENGLISH_LOCALES },
-    { id = "lord_of_lords", check = CheckLordOfLords, progress = ProgressKeywordSpotting("lord"), group = "spotting", locales = ENGLISH_LOCALES },
-    { id = "masterclass", check = CheckMasterclass, progress = ProgressKeywordSpotting("master"), group = "spotting", locales = ENGLISH_LOCALES },
-    { id = "slay", check = CheckSlay, progress = ProgressKeywordSpotting("slayer"), group = "spotting", locales = ENGLISH_LOCALES },
+    { id = "lord_of_lords", check = CheckKeyword("lord_of_lords"), progress = ProgressKeyword("lord_of_lords"), group = "spotting", locales = KeywordLocales("lord_of_lords") },
+    { id = "masterclass", check = CheckKeyword("masterclass"), progress = ProgressKeyword("masterclass"), group = "spotting", locales = KeywordLocales("masterclass") },
+    { id = "slay", check = CheckKeyword("slay"), progress = ProgressKeyword("slay"), group = "spotting", locales = KeywordLocales("slay") },
     { id = "gladiator_groupie", check = CheckGladiatorGroupie, progress = ProgressSourceSpotting("pvp"), group = "spotting" },
     { id = "raid_spectator", check = CheckRaidSpectator, progress = ProgressSourceSpotting("raid"), group = "spotting" },
     { id = "brown_noser", check = CheckBrownNoser, progress = ProgressSourceSpotting("reputation"), group = "spotting" },

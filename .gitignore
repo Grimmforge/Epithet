@@ -1,8 +1,10 @@
 # Epithet - WoW Addon
 # =====================
 
-# Title database (curated/proprietary — not distributed via source control)
-data/TitlesDB.lua
+# Title database (curated/proprietary — not distributed via source control).
+# Covers the enGB base (data/TitlesDB.enGB.lua) and any localised overlays
+# (data/TitlesDB.ruRU.lua, ...). The tracked *.lua.example template is kept.
+data/TitlesDB.*.lua
 data/schema.json
 
 # Build output

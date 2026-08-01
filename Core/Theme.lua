@@ -79,18 +79,86 @@ end
 -- ---- fonts: native TTFs that approximate the Cinzel/Marcellus pairing --
 -- MORPHEUS = WoW's serif (quest titles) -> title-in-context & names
 -- FRIZQT__ = WoW's body face -> labels, caps headings, body
+--
+-- The client's MORPHEUS/FRIZQT only cover its own region's script, so under the
+-- language override a locale using a different script (e.g. Russian on a Western
+-- client) renders as boxes. For such locales we use a bundled Unicode TTF; drop
+-- the files into Epithet\Fonts\ (see Fonts\README.md). If a bundled file is
+-- missing, SetFont fails and we fall back to the client font (uncovered glyphs
+-- still show as boxes, but nothing errors).
+local CLIENT_SERIF  = "Fonts\\MORPHEUS.TTF"
+local CLIENT_SANS   = "Fonts\\FRIZQT__.TTF"
+local BUNDLED_SERIF = "Interface\\AddOns\\Epithet\\Fonts\\Epithet-Serif.ttf"
+local BUNDLED_SANS  = "Interface\\AddOns\\Epithet\\Fonts\\Epithet-Sans.ttf"
+
+-- Active locales whose script isn't in the Western client fonts.
+local BUNDLED_FONT_LOCALES = { ruRU = true }
+
+local function NeedsBundledFont()
+    local code = ns.activeLocale
+    return code ~= nil and BUNDLED_FONT_LOCALES[code] == true
+end
+
+function Theme.SerifFontPath() return NeedsBundledFont() and BUNDLED_SERIF or CLIENT_SERIF end
+function Theme.SansFontPath()  return NeedsBundledFont() and BUNDLED_SANS  or CLIENT_SANS  end
+
+-- Set `preferred` on a font instance; if it fails, fall back to the client font
+-- so text still draws. SetFont RAISES a Lua error for a missing/invalid asset
+-- (it does not return false), so the attempt must be wrapped in pcall. Once a
+-- path has failed we remember it and skip straight to the client font, so a
+-- missing bundled font errors at most once per session instead of per widget.
+local fontLoadFailed = {}
+local function ApplyFont(fontLike, preferred, client, size, flags)
+    flags = flags or ""
+    if preferred ~= client and not fontLoadFailed[preferred] then
+        if pcall(fontLike.SetFont, fontLike, preferred, size, flags) then
+            return
+        end
+        fontLoadFailed[preferred] = true
+    end
+    fontLike:SetFont(client, size, flags)
+end
+
 function Theme.Serif(parent, size, col)
     local fs = parent:CreateFontString(nil, "OVERLAY")
-    fs:SetFont("Fonts\\MORPHEUS.TTF", size or 16, "")
+    ApplyFont(fs, Theme.SerifFontPath(), CLIENT_SERIF, size or 16)
     if col then fs:SetTextColor(col.r, col.g, col.b, col.a or 1) end
     return fs
 end
 
 function Theme.Sans(parent, size, col)
     local fs = parent:CreateFontString(nil, "OVERLAY")
-    fs:SetFont("Fonts\\FRIZQT__.TTF", size or 12, "")
+    ApplyFont(fs, Theme.SansFontPath(), CLIENT_SANS, size or 12)
     if col then fs:SetTextColor(col.r, col.g, col.b, col.a or 1) end
     return fs
+end
+
+-- Shared font OBJECT for Blizzard template widgets (dropdowns) that take a
+-- fontObject instead of a raw SetFont. Returns nil when the client fonts already
+-- cover the active locale, so those widgets keep their default look unchanged.
+local localeFontObjects = {}
+function Theme.LocaleFontObject(size)
+    if not NeedsBundledFont() then return nil end
+    size = size or 12
+    local obj = localeFontObjects[size]
+    if not obj then
+        obj = CreateFont("EpithetLocaleFont" .. size)
+        ApplyFont(obj, BUNDLED_SANS, CLIENT_SANS, size)
+        obj:SetTextColor(0.96, 0.92, 0.82)
+        localeFontObjects[size] = obj
+    end
+    return obj
+end
+
+-- Re-point an EXISTING FontString (from an XML template or a Blizzard game font
+-- like GameFontDisableSmall) at the bundled Unicode face when the active locale
+-- needs it — for text that isn't created via Theme.Sans/Serif. A no-op on
+-- locales the client fonts already cover, so those widgets keep their template
+-- look. Preserves the widget's current size and outline flags.
+function Theme.ApplyLocaleFont(fontLike)
+    if not fontLike or not NeedsBundledFont() then return end
+    local _, size, flags = fontLike:GetFont()
+    ApplyFont(fontLike, BUNDLED_SANS, CLIENT_SANS, size or 12, flags)
 end
 
 -- caps "display" label (caller uppercases text before setting)

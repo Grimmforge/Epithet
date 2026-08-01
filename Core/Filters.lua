@@ -127,7 +127,6 @@ function Filters:Matches(record, filters)
                 (record.achievement or "") .. " " ..
                 (record.quest or "") .. " " ..
                 (record.source_item or "") .. " " ..
-                (record.link or "") .. " " ..
                 (record.cat or "")
             )
         end
@@ -321,9 +320,12 @@ function Filters:BuildDisplayList(records, sortMode)
             local c = record.cat or ""
             if c ~= currentCat then
                 currentCat = c
+                local label = (c ~= "") and ns.CategoryLabel(c) or (ns.L and ns.L["CATEGORY_UNCATEGORIZED"]) or "Uncategorized"
+                -- Uppercase locale-safely: plain :upper() only folds ASCII and
+                -- would leave a Cyrillic (or other non-Latin) label lower-case.
                 display[#display + 1] = {
                     isHeader = true,
-                    label = (c ~= "") and c:upper() or "UNCATEGORIZED",
+                    label = (ns.Strupper and ns.Strupper(label)) or label:upper(),
                     count = catCounts[c] or 0,
                 }
             end

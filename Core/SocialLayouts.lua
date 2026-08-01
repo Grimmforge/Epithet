@@ -196,7 +196,7 @@ function Layouts:SetTargetPillContent(frame, titleText, quality, rarityText)
 
     frame.gem:SetTexture(self:GetRarityGem(q))
     frame.titleText:SetText(titleText or "")
-    frame.rarityText:SetText(rarityText or "UNKNOWN")
+    frame.rarityText:SetText(rarityText or (ns.L and ns.L["RARITY_UNKNOWN"]) or "UNKNOWN")
 
     local style = (frame.layoutMetrics and frame.layoutMetrics.layoutStyle) or "classic"
     frame.portraitUnit = "target"

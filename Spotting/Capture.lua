@@ -14,7 +14,6 @@ local UnitGUID = UnitGUID
 local UnitIsPlayer = UnitIsPlayer
 local UnitIsUnit = UnitIsUnit
 local UnitName = UnitName
-local UnitPVPName = UnitPVPName
 local UnitClass = UnitClass
 local UnitRace = UnitRace
 local UnitSex = UnitSex
@@ -139,8 +138,11 @@ function Capture:TryCapture(unit, fromRetry)
     end
 
     local baseName = UnitName and UnitName(unit)
-    local fullName = UnitPVPName and UnitPVPName(unit)
-    if not fromRetry and baseName and (not fullName or fullName == baseName) then
+    local displayName = nil
+    if unit == "target" and TargetFrameName and TargetFrameName.GetText then
+        displayName = TargetFrameName:GetText()
+    end
+    if not fromRetry and baseName and (not displayName or displayName == "") then
         self:QueueRetry(guid)
         return
     end
@@ -225,7 +227,7 @@ function Capture:TryCapture(unit, fromRetry)
     end
 
     if not titleID then
-        if not fromRetry and baseName and (not fullName or fullName == baseName) then
+        if not fromRetry and baseName and (not displayName or displayName == "") then
             self:QueueRetry(guid)
         end
         return

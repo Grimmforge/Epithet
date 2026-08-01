@@ -4,6 +4,7 @@
 local _, ns = ...
 local L = ns.L
 local T = ns.Theme
+local GetSpellTexture = GetSpellTexture
 
 local LogbookUI = {}
 ns.LogbookUI = LogbookUI
@@ -258,7 +259,12 @@ local function BuildDateString(epoch)
     if not epoch then
         return "?"
     end
-    return date("%d %b %Y", epoch)
+    -- date("%b") month abbreviations are always English regardless of the active
+    -- locale, so decompose the epoch and resolve the month through ns.L (the same
+    -- MONTH_<n> keys the main title list uses), matching its "day Month year" form.
+    local t = date("*t", epoch)
+    local monthName = (t and L and L["MONTH_" .. t.month]) or "?"
+    return string.format("%d %s %d", t.day, monthName, t.year)
 end
 
 local function GetRarityColour(quality)
@@ -368,9 +374,44 @@ end
 local RACE_COORD_ALIASES = {
     scourge = "Scourge",
     undead = "Scourge",
+    goblin = "Goblin",
     dracthyr = "Dracthyr",
+    dracthyrvisage = "Dracthyr",
+    dracthyrhumanoid = "Dracthyr",
     earthen = "Earthen",
 }
+
+local RACE_COORD_KEY_ALIASES = {
+    kultiran = "KULTIRANHUMAN",
+    kultiranhuman = "KULTIRANHUMAN",
+    highmountaintauren = "HIGHMOUNTAIN",
+    highmountain = "HIGHMOUNTAIN",
+    lightforgeddraenei = "LIGHTFORGED",
+    lightforged = "LIGHTFORGED",
+    magharorc = "MAGHAR",
+    maghar = "MAGHAR",
+    darkirondwarf = "DARKIRONDWARF",
+    zandalaritroll = "ZANDALARITROLL",
+    voidelf = "VOIDELF",
+    earthendwarf = "EARTHEN",
+    earthen = "EARTHEN",
+    dracthyrvisage = "DRACTHYR",
+    dracthyrhumanoid = "DRACTHYR",
+}
+
+local function NormalizeRaceKeyVariant(lower)
+    if type(lower) ~= "string" or lower == "" then
+        return nil
+    end
+
+    local base = lower
+    base = base:gsub("(alliance|horde|neutral)$", "")
+    base = base:gsub("(male|female)$", "")
+    if base == "" then
+        return nil
+    end
+    return base
+end
 
 local function GetRaceCoords(raceTag, sex)
     local coords = _G.RACE_ICON_TCOORDS
@@ -386,6 +427,29 @@ local function GetRaceCoords(raceTag, sex)
     local lower, squashed = NormalizeRaceTagForLookup(raceTag)
     if not lower then
         return nil
+    end
+
+    local normalizedSex = NormalizeSexForLookup(sex)
+    local sexKey = normalizedSex == 3 and "FEMALE" or "MALE"
+    local baseUpper = (RACE_COORD_KEY_ALIASES[lower] or lower):upper()
+    local variant = NormalizeRaceKeyVariant(lower)
+    local variantUpper = variant and (RACE_COORD_KEY_ALIASES[variant] or variant):upper() or nil
+
+    local keyedCandidates = {
+        baseUpper .. "_" .. sexKey,
+        baseUpper,
+    }
+
+    if variantUpper and variantUpper ~= baseUpper then
+        keyedCandidates[#keyedCandidates + 1] = variantUpper .. "_" .. sexKey
+        keyedCandidates[#keyedCandidates + 1] = variantUpper
+    end
+
+    for _, key in ipairs(keyedCandidates) do
+        local resolved = ExtractAtlasCoords(coords[key], sex)
+        if resolved then
+            return resolved
+        end
     end
 
     for key, value in pairs(coords) do
@@ -405,6 +469,17 @@ local function GetRaceCoords(raceTag, sex)
         local resolved = ExtractAtlasCoords(coords[aliased], sex)
         if resolved then
             return resolved
+        end
+    end
+
+    variant = NormalizeRaceKeyVariant(lower)
+    if variant and variant ~= lower then
+        local variantAlias = RACE_COORD_ALIASES[variant]
+        if variantAlias then
+            local resolved = ExtractAtlasCoords(coords[variantAlias], sex)
+            if resolved then
+                return resolved
+            end
         end
     end
 
@@ -472,59 +547,257 @@ local function FormatRaceLabel(raceTag)
     return label
 end
 
-local function BuildRaceInlineIconTag(raceTag, sex)
-    local coords = GetRaceCoords(raceTag, sex)
-    if not coords then
-        return ""
+local RACE_ICON_FALLBACKS
+local RACE_ICON_FALLBACKS_FEMALE
+local RACE_ICON_ALIAS_TO_BASE
+local RACE_ICON_SPECIES_BASE_FALLBACK
+local ResolveRaceFallbackIcon
+local RACE_GLUE_ICON_TOKENS
+local TryApplyGlueRaceIcon
+local ResolveRaceSpellIcon
+local ApplyRaceTexture
+local RACE_ICON_MISS_REPORTED = {}
+local RACE_ICON_DEBUG_LINES = {}
+local RACE_ICON_DEBUG_LIMIT = 500
+
+local function IsRaceIconDebugEnabled()
+    local admin = ns.AdminCommands
+    if admin and type(admin.IsRaceIconDebugEnabled) == "function" then
+        return admin:IsRaceIconDebugEnabled()
     end
-
-    local left = math.floor((coords[1] or 0) * 256)
-    local right = math.floor((coords[2] or 1) * 256)
-    local top = math.floor((coords[3] or 0) * 256)
-    local bottom = math.floor((coords[4] or 1) * 256)
-
-    return string.format("|T%s:16:16:0:0:256:256:%d:%d:%d:%d|t ", RACE_ICON, left, right, top, bottom)
+    return false
 end
 
-local RACE_ICON_FALLBACKS = {
-    human = "Interface\\Icons\\Achievement_Character_Human_Male",
-    orc = "Interface\\Icons\\Achievement_Character_Orc_Male",
-    dwarf = "Interface\\Icons\\Achievement_Character_Dwarf_Male",
-    nightelf = "Interface\\Icons\\Achievement_Character_Nightelf_Male",
-    scourge = "Interface\\Icons\\Achievement_Character_Undead_Male",
-    undead = "Interface\\Icons\\Achievement_Character_Undead_Male",
-    tauren = "Interface\\Icons\\Achievement_Character_Tauren_Male",
-    gnome = "Interface\\Icons\\Achievement_Character_Gnome_Male",
-    troll = "Interface\\Icons\\Achievement_Character_Troll_Male",
-    goblin = "Interface\\Icons\\Achievement_Character_Goblin_Male",
-    bloodelf = "Interface\\Icons\\Achievement_Character_Bloodelf_Male",
-    draenei = "Interface\\Icons\\Achievement_Character_Draenei_Male",
-    worgen = "Interface\\Icons\\Achievement_Character_Worgen_Male",
-    pandaren = "Interface\\Icons\\Achievement_Character_Pandaren_Male",
-    voidelf = "Interface\\Icons\\Achievement_Character_Voidelf_Male",
-    lightforgeddraenei = "Interface\\Icons\\Achievement_Character_Lightforgeddraenei_Male",
-    highmountaintauren = "Interface\\Icons\\Achievement_Character_Highmountaintauren_Male",
-    nightborne = "Interface\\Icons\\Achievement_Character_Nightborne_Male",
-    magharorc = "Interface\\Icons\\Achievement_Character_Orc_Male",
-    darkirondwarf = "Interface\\Icons\\Achievement_Character_Darkirondwarf_Male",
-    zandalaritroll = "Interface\\Icons\\Achievement_Character_ZandalariTroll_Male",
-    kultiran = "Interface\\Icons\\Achievement_Character_KulTiran_Male",
-    mechagnome = "Interface\\Icons\\Achievement_Character_Mechagnome_Male",
-    vulpera = "Interface\\Icons\\Achievement_Character_Vulpera_Male",
-    dracthyr = "Interface\\Icons\\Achievement_Character_Dracthyr_Male",
-    earthen = "Interface\\Icons\\Achievement_Character_Earthen_Male",
-    haranir = "Interface\\Icons\\Achievement_Character_Nightelf_Male",
-    harronir = "Interface\\Icons\\Achievement_Character_Nightelf_Male",
+ns.ResetRaceIconDebugCache = function()
+    RACE_ICON_MISS_REPORTED = {}
+end
+
+ns.ClearRaceIconDebugLog = function()
+    RACE_ICON_DEBUG_LINES = {}
+end
+
+ns.GetRaceIconDebugPayload = function()
+    if #RACE_ICON_DEBUG_LINES == 0 then
+        return "(No unresolved race icon entries captured yet.)"
+    end
+    return table.concat(RACE_ICON_DEBUG_LINES, "\n")
+end
+
+local function AppendRaceIconDebugLine(line)
+    if not line or line == "" then
+        return
+    end
+    RACE_ICON_DEBUG_LINES[#RACE_ICON_DEBUG_LINES + 1] = line
+    if #RACE_ICON_DEBUG_LINES > RACE_ICON_DEBUG_LIMIT then
+        table.remove(RACE_ICON_DEBUG_LINES, 1)
+    end
+end
+
+local raceDebugProbeTexture = nil
+
+local function GetRaceDebugProbeTexture()
+    if raceDebugProbeTexture then
+        return raceDebugProbeTexture
+    end
+
+    local parent = UIParent
+    if not parent or not CreateFrame then
+        return nil
+    end
+
+    local holder = CreateFrame("Frame", nil, parent)
+    holder:Hide()
+    raceDebugProbeTexture = holder:CreateTexture(nil, "ARTWORK")
+    return raceDebugProbeTexture
+end
+
+local function CanResolveRaceIcon(raceTag, sex)
+    local normalizedSex = NormalizeSexForLookup(sex)
+    local probe = GetRaceDebugProbeTexture()
+
+    local function ProbeLoadsTexture(path)
+        if not probe or not path or path == "" then
+            return false
+        end
+        if not probe.SetTexture then
+            return false
+        end
+        return probe:SetTexture(path) == true
+    end
+
+    if raceTag and raceTag ~= "" then
+        local coords = normalizedSex and GetRaceCoords(raceTag, normalizedSex) or nil
+        if coords then
+            return true
+        end
+
+        if probe and TryApplyGlueRaceIcon(probe, raceTag, normalizedSex) then
+            return true
+        end
+
+        local icon = ResolveRaceFallbackIcon(raceTag, normalizedSex)
+        if ProbeLoadsTexture(icon) then
+            return true
+        end
+
+        local spellIcon = ResolveRaceSpellIcon(raceTag)
+        if ProbeLoadsTexture(spellIcon) then
+            return true
+        end
+    else
+        -- Missing race tags still render via unknown placeholders and should
+        -- not be reported as unresolved icon mapping failures.
+        return true
+    end
+
+    return false
+end
+
+ns.RunRaceIconDebugCheck = function()
+    if type(ns.ClearRaceIconDebugLog) == "function" then
+        ns.ClearRaceIconDebugLog()
+    end
+    if type(ns.ResetRaceIconDebugCache) == "function" then
+        ns.ResetRaceIconDebugCache()
+    end
+
+    local log = ns.SpottingLog
+    if not log or type(log.Iterate) ~= "function" then
+        return true, "Race icon check unavailable: spotting log is not ready."
+    end
+
+    local checked = 0
+    local probe = GetRaceDebugProbeTexture()
+    if not probe then
+        return false, "Race icon check unavailable: unable to create probe texture."
+    end
+
+    local admin = ns.AdminCommands
+    local previousDebugState = nil
+    if admin and type(admin.IsRaceIconDebugEnabled) == "function" then
+        previousDebugState = admin:IsRaceIconDebugEnabled()
+    end
+    if admin and type(admin.SetRaceIconDebugEnabled) == "function" then
+        admin:SetRaceIconDebugEnabled(true)
+    end
+
+    for titleID, entry in log:Iterate() do
+        checked = checked + 1
+        local raceTag = entry and entry.raceTag or nil
+        local sex = entry and entry.sex or nil
+
+        -- Reuse the exact same resolution path as row/tile rendering so this
+        -- check reflects live unresolved results one-to-one.
+        ApplyRaceTexture(probe, nil, raceTag, sex)
+    end
+
+    if admin and type(admin.SetRaceIconDebugEnabled) == "function" then
+        admin:SetRaceIconDebugEnabled(previousDebugState == true)
+    end
+
+    local payload = (ns.GetRaceIconDebugPayload and ns.GetRaceIconDebugPayload()) or ""
+    local unresolved = 0
+    if payload ~= "" then
+        unresolved = select(2, payload:gsub("\n", "")) + 1
+    end
+
+    local summary = "Checked " .. tostring(checked) .. " spotted entries. Unresolved race icons: " .. tostring(unresolved) .. "."
+    if unresolved == 0 then
+        return true, summary .. "\nAll spotted race icon mappings resolved."
+    end
+
+    if payload ~= "" then
+        return true, payload
+    end
+
+    return true, summary
+end
+
+local function BuildRaceInlineIconTag(raceTag, sex)
+    local coords = GetRaceCoords(raceTag, sex)
+    if coords then
+        local left = math.floor((coords[1] or 0) * 256)
+        local right = math.floor((coords[2] or 1) * 256)
+        local top = math.floor((coords[3] or 0) * 256)
+        local bottom = math.floor((coords[4] or 1) * 256)
+
+        return string.format("|T%s:16:16:0:0:256:256:%d:%d:%d:%d|t ", RACE_ICON, left, right, top, bottom)
+    end
+
+    local icon = ResolveRaceFallbackIcon and ResolveRaceFallbackIcon(raceTag, sex) or nil
+
+    if icon and icon ~= "" then
+        return string.format("|T%s:16:16:0:0|t ", icon)
+    end
+
+    return ""
+end
+
+local RACE_ICON_TOKENS = {
+    human = "Human",
+    orc = "Orc",
+    dwarf = "Dwarf",
+    nightelf = "NightElf",
+    undead = "Undead",
+    tauren = "Tauren",
+    gnome = "Gnome",
+    troll = "Troll",
+    goblin = "Goblin",
+    bloodelf = "BloodElf",
+    draenei = "Draenei",
+    worgen = "Worgen",
+    pandaren = "Pandaren",
+    voidelf = "VoidElf",
+    lightforgeddraenei = "LightforgedDraenei",
+    highmountaintauren = "HighmountainTauren",
+    nightborne = "Nightborne",
+    magharorc = "MagharOrc",
+    darkirondwarf = "DarkIronDwarf",
+    zandalaritroll = "ZandalariTroll",
+    kultiran = "KulTiran",
+    mechagnome = "Mechagnome",
+    vulpera = "Vulpera",
+    dracthyr = "Dracthyr",
+    earthen = "Earthen",
+}
+
+RACE_ICON_FALLBACKS = {}
+for raceKey, token in pairs(RACE_ICON_TOKENS) do
+    RACE_ICON_FALLBACKS[raceKey] = "Interface\\Icons\\Achievement_Character_" .. token .. "_Male"
+end
+
+RACE_ICON_ALIAS_TO_BASE = {
+    scourge = "undead",
+    forsaken = "undead",
+    maghar = "magharorc",
+    magharorc = "magharorc",
+    zandalari = "zandalaritroll",
+    kultiranhuman = "kultiran",
+    kultiran = "kultiran",
+    darkiron = "darkirondwarf",
+    darkirondwarf = "darkirondwarf",
+    lightforged = "lightforgeddraenei",
+    lightforgeddraenei = "lightforgeddraenei",
+    highmountain = "highmountaintauren",
+    highmountaintauren = "highmountaintauren",
+    voidelf = "voidelf",
+    rendorei = "voidelf",
+    dracthyr = "dracthyr",
+    dracthyrvisage = "dracthyr",
+    dracthyrhumanoid = "dracthyr",
+    earthen = "earthen",
+    haranir = "nightelf",
+    harronir = "nightelf",
 }
 
 -- Every fallback icon follows Achievement_Character_<Race>_Male, so the
 -- female set is derived rather than hand-duplicated.
-local RACE_ICON_FALLBACKS_FEMALE = {}
+RACE_ICON_FALLBACKS_FEMALE = {}
 for raceKey, malePath in pairs(RACE_ICON_FALLBACKS) do
     RACE_ICON_FALLBACKS_FEMALE[raceKey] = (malePath:gsub("_Male$", "_Female"))
 end
 
-local RACE_ICON_ALIAS_TO_BASE = {
+RACE_ICON_SPECIES_BASE_FALLBACK = {
     magharorc = "orc",
     darkirondwarf = "dwarf",
     highmountaintauren = "tauren",
@@ -535,9 +808,234 @@ local RACE_ICON_ALIAS_TO_BASE = {
     mechagnome = "gnome",
     kultiran = "human",
     earthen = "dwarf",
-    haranir = "nightelf",
-    harronir = "nightelf",
 }
+
+local RACE_SPELL_ICON_IDS = {
+    human = 59752,
+    dwarf = 20594,
+    nightelf = 58984,
+    gnome = 20589,
+    draenei = 59545,
+    worgen = 68992,
+    orc = 20572,
+    scourge = 7744,
+    undead = 7744,
+    tauren = 20549,
+    troll = 26297,
+    bloodelf = 50613,
+    goblin = 69070,
+    pandaren = 107079,
+    dracthyr = 357214,
+    voidelf = 256948,
+    lightforgeddraenei = 255647,
+    darkirondwarf = 265221,
+    kultiran = 287712,
+    mechagnome = 312924,
+    nightborne = 260364,
+    highmountaintauren = 255654,
+    magharorc = 274738,
+    zandalaritroll = 291944,
+    vulpera = 312411,
+    earthen = 436344,
+    earthendwarf = 436344,
+}
+
+ResolveRaceSpellIcon = function(raceTag)
+    local normalized = NormalizeRaceTagForLookup(raceTag)
+    local variant = NormalizeRaceKeyVariant(normalized)
+
+    local canonical = nil
+    if normalized then
+        canonical = RACE_ICON_ALIAS_TO_BASE[normalized]
+    end
+    if not canonical and variant then
+        canonical = RACE_ICON_ALIAS_TO_BASE[variant]
+    end
+
+    local keys = { normalized, variant, canonical }
+    for _, key in ipairs(keys) do
+        local spellID = key and RACE_SPELL_ICON_IDS[key] or nil
+        if spellID and GetSpellTexture then
+            local icon = GetSpellTexture(spellID)
+            if icon then
+                return icon
+            end
+        end
+    end
+
+    return nil
+end
+
+RACE_GLUE_ICON_TOKENS = {
+    human = { "human" },
+    orc = { "orc" },
+    dwarf = { "dwarf" },
+    nightelf = { "nightelf" },
+    undead = { "undead" },
+    tauren = { "tauren" },
+    gnome = { "gnome" },
+    troll = { "troll" },
+    goblin = { "goblin" },
+    bloodelf = { "bloodelf" },
+    draenei = { "draenei" },
+    worgen = { "worgen" },
+    pandaren = { "pandaren", "panda" },
+    voidelf = { "voidelf" },
+    lightforgeddraenei = { "lightforged" },
+    highmountaintauren = { "highmountain" },
+    nightborne = { "nightborne" },
+    magharorc = { "maghar" },
+    darkirondwarf = { "darkirondwarf" },
+    zandalaritroll = { "zandalaritroll" },
+    kultiran = { "kultiranhuman", "kultiran" },
+    mechagnome = { "mechagnome" },
+    vulpera = { "vulpera" },
+    dracthyr = { "dracthyr", "dracthyr-visage" },
+    earthen = { "earthen" },
+    haranir = { "haranir" },
+    harronir = { "haranir" },
+}
+
+TryApplyGlueRaceIcon = function(texture, raceTag, sex)
+    if not texture then
+        return false
+    end
+
+    local normalizedSex = NormalizeSexForLookup(sex)
+    local sexSuffix = (normalizedSex == 3) and "female" or "male"
+    local normalized = NormalizeRaceTagForLookup(raceTag)
+    local variant = NormalizeRaceKeyVariant(normalized)
+
+    local canonical = nil
+    if normalized then
+        canonical = RACE_ICON_ALIAS_TO_BASE[normalized]
+    end
+    if not canonical and variant then
+        canonical = RACE_ICON_ALIAS_TO_BASE[variant]
+    end
+
+    local keys = { normalized, variant, canonical }
+    local tried = {}
+
+    for _, key in ipairs(keys) do
+        if key and not tried[key] then
+            tried[key] = true
+            local tokens = RACE_GLUE_ICON_TOKENS[key]
+            if tokens then
+                for _, token in ipairs(tokens) do
+                    local tokenTitle = token:gsub("^%l", string.upper)
+                    local sexTitle = sexSuffix:gsub("^%l", string.upper)
+
+                    if texture.SetAtlas then
+                        local atlasCandidates = {
+                            "ui-charactercreate-races_" .. token .. "-" .. sexSuffix,
+                            "ui-charactercreate-races-" .. token .. "-" .. sexSuffix,
+                            "charactercreate-races_" .. token .. "-" .. sexSuffix,
+                            "charactercreate-races-" .. token .. "-" .. sexSuffix,
+                            "ui-charactercreate-races_" .. tokenTitle .. "-" .. sexTitle,
+                            "ui-charactercreate-races-" .. tokenTitle .. "-" .. sexTitle,
+                            "charactercreate-races_" .. tokenTitle .. "-" .. sexTitle,
+                            "charactercreate-races-" .. tokenTitle .. "-" .. sexTitle,
+                        }
+
+                        for _, atlasName in ipairs(atlasCandidates) do
+                            if texture:SetAtlas(atlasName, true) then
+                                return true
+                            end
+                        end
+                    end
+
+                    local candidates = {
+                        "Interface\\Icons\\UI-CharacterCreate-Races_" .. token .. "-" .. sexSuffix,
+                        "Interface\\Icons\\CharacterCreate-Races_" .. token .. "-" .. sexSuffix,
+                        "Interface\\Icons\\UI-CharacterCreate-Races-" .. token .. "-" .. sexSuffix,
+                        "Interface\\Icons\\CharacterCreate-Races-" .. token .. "-" .. sexSuffix,
+                        "Interface\\Icons\\Ui-CharacterCreate-Races_" .. token .. "-" .. sexSuffix,
+                        "Interface\\Icons\\Ui-CharacterCreate-Races-" .. token .. "-" .. sexSuffix,
+                        "Interface\\Icons\\Charactercreate-races_" .. token .. "-" .. sexSuffix,
+                        "Interface\\Icons\\Charactercreate-races-" .. token .. "-" .. sexSuffix,
+                        "Interface\\GLUES\\CHARACTERCREATE\\UI-CharacterCreate-Races_" .. token .. "-" .. sexSuffix,
+                        "Interface\\GLUES\\CHARACTERCREATE\\UI-CharacterCreate-Races-" .. token .. "-" .. sexSuffix,
+                        "Interface\\GLUES\\CHARACTERCREATE\\CharacterCreate-Races_" .. token .. "-" .. sexSuffix,
+                        "Interface\\GLUES\\CHARACTERCREATE\\CharacterCreate-Races-" .. token .. "-" .. sexSuffix,
+                        "Interface\\GLUES\\CHARACTERCREATE\\UI-CharacterCreate-Races_" .. tokenTitle .. "-" .. sexSuffix,
+                        "Interface\\GLUES\\CHARACTERCREATE\\UI-CharacterCreate-Races-" .. tokenTitle .. "-" .. sexSuffix,
+                        "Interface\\GLUES\\CHARACTERCREATE\\CharacterCreate-Races_" .. tokenTitle .. "-" .. sexSuffix,
+                        "Interface\\GLUES\\CHARACTERCREATE\\CharacterCreate-Races-" .. tokenTitle .. "-" .. sexSuffix,
+                    }
+
+                    for _, path in ipairs(candidates) do
+                        if texture:GetTexture() ~= path then
+                            texture:SetTexture(nil)
+                            texture:SetTexture(path)
+                        end
+                        if texture:GetTexture() then
+                            texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+                            return true
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return false
+end
+
+ResolveRaceFallbackIcon = function(raceTag, sex)
+    local normalizedSex = NormalizeSexForLookup(sex)
+    local normalized = NormalizeRaceTagForLookup(raceTag)
+    local variant = NormalizeRaceKeyVariant(normalized)
+    local icon = nil
+
+    if normalizedSex == 3 then
+        icon = normalized and RACE_ICON_FALLBACKS_FEMALE[normalized] or nil
+    end
+    if not icon then
+        icon = normalized and RACE_ICON_FALLBACKS[normalized] or nil
+    end
+
+    if not icon and variant and variant ~= normalized then
+        icon = (normalizedSex == 3) and RACE_ICON_FALLBACKS_FEMALE[variant] or RACE_ICON_FALLBACKS[variant]
+        if not icon and normalizedSex == 3 then
+            icon = RACE_ICON_FALLBACKS[variant]
+        end
+    end
+
+    local canonical = nil
+    if not canonical and normalized then
+        canonical = RACE_ICON_ALIAS_TO_BASE[normalized]
+    end
+    if not canonical and variant then
+        canonical = RACE_ICON_ALIAS_TO_BASE[variant]
+    end
+
+    if canonical and not icon then
+        icon = (normalizedSex == 3) and RACE_ICON_FALLBACKS_FEMALE[canonical] or RACE_ICON_FALLBACKS[canonical]
+        if not icon and normalizedSex == 3 then
+            icon = RACE_ICON_FALLBACKS[canonical]
+        end
+    end
+
+    local species = nil
+    if normalized then
+        species = RACE_ICON_SPECIES_BASE_FALLBACK[normalized]
+    end
+    if not species and canonical then
+        species = RACE_ICON_SPECIES_BASE_FALLBACK[canonical]
+    end
+    if not species and variant then
+        species = RACE_ICON_SPECIES_BASE_FALLBACK[variant]
+    end
+    if species and not icon then
+        icon = (normalizedSex == 3) and RACE_ICON_FALLBACKS_FEMALE[species] or RACE_ICON_FALLBACKS[species]
+        if not icon and normalizedSex == 3 then
+            icon = RACE_ICON_FALLBACKS[species]
+        end
+    end
+
+    return icon
+end
 
 local function TrySetTexture(texture, path)
     if not texture or not path or path == "" then
@@ -602,7 +1100,7 @@ local function SetUnknownTexture(texture, blendTexture, sex)
     return true
 end
 
-local function ApplyRaceTexture(texture, blendTexture, raceTag, sex)
+ApplyRaceTexture = function(texture, blendTexture, raceTag, sex)
     if not texture then
         return false
     end
@@ -613,38 +1111,40 @@ local function ApplyRaceTexture(texture, blendTexture, raceTag, sex)
 
     local normalizedSex = NormalizeSexForLookup(sex)
 
-    if not raceTag or raceTag == "" or not normalizedSex then
+    if not raceTag or raceTag == "" then
         return SetUnknownTexture(texture, blendTexture, sex)
     end
 
-    local coords = GetRaceCoords(raceTag, normalizedSex)
+    local coords = normalizedSex and GetRaceCoords(raceTag, normalizedSex) or nil
     if coords then
         TrySetTexture(texture, RACE_ICON)
         texture:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
         return true
     end
 
-    local normalized = NormalizeRaceTagForLookup(raceTag)
-    local icon = nil
-    if normalizedSex == 3 then
-        icon = normalized and RACE_ICON_FALLBACKS_FEMALE[normalized] or nil
+    if TryApplyGlueRaceIcon(texture, raceTag, normalizedSex) then
+        return true
     end
-    if not icon then
-        icon = normalized and RACE_ICON_FALLBACKS[normalized] or nil
-    end
+
+    local icon = ResolveRaceFallbackIcon(raceTag, normalizedSex)
     if icon then
         if TrySetTexture(texture, icon) then
             texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
             return true
         end
+    end
 
-        local baseRace = normalized and RACE_ICON_ALIAS_TO_BASE[normalized] or nil
-        if baseRace then
-            local baseIcon = (normalizedSex == 3) and RACE_ICON_FALLBACKS_FEMALE[baseRace] or RACE_ICON_FALLBACKS[baseRace]
-            if baseIcon and TrySetTexture(texture, baseIcon) then
-                texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-                return true
-            end
+    local spellIcon = ResolveRaceSpellIcon(raceTag)
+    if spellIcon and TrySetTexture(texture, spellIcon) then
+        texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+        return true
+    end
+
+    if IsRaceIconDebugEnabled() then
+        local missKey = tostring(raceTag or "") .. "|" .. tostring(normalizedSex or sex or "")
+        if not RACE_ICON_MISS_REPORTED[missKey] then
+            RACE_ICON_MISS_REPORTED[missKey] = true
+            AppendRaceIconDebugLine("Race icon unresolved for raceTag='" .. tostring(raceTag or "") .. "', sex='" .. tostring(sex or "") .. "'.")
         end
     end
 
@@ -1027,6 +1527,7 @@ function LogbookUI:EnsureTransferModal()
     note:SetPoint("TOPRIGHT", -12, -6)
     note:SetJustifyH("LEFT")
     note:SetText((L and L["SPOTTING_TRANSFER_NOTE"]) or "Copy/paste the payload below.")
+    modal.note = note
 
     local editorWrap = CreateFrame("Frame", nil, modal, "BackdropTemplate")
     editorWrap:SetPoint("TOPLEFT", modal, "TOPLEFT", 12, -48)
@@ -1141,6 +1642,47 @@ function LogbookUI:OpenImportModal()
     modal.edit:SetText("")
     modal.edit:SetFocus()
     modal:Show()
+end
+
+function LogbookUI:OpenRaceIconDebugModal()
+    local payload = (ns.GetRaceIconDebugPayload and ns.GetRaceIconDebugPayload()) or "(No unresolved race icon entries captured yet.)"
+    if ns and type(ns.OpenDebugTextModal) == "function" then
+        return ns.OpenDebugTextModal("Race Icon Debug Log", payload, "Copy the unresolved race icon entries below.")
+    end
+    return false, "Global debug modal is unavailable."
+end
+
+function LogbookUI:OpenDebugTextModal(title, payload, note)
+    if not self.panel then
+        return false, "Spotting UI is not initialized yet."
+    end
+
+    if not self.panel:IsShown() then
+        self:Show()
+    end
+
+    local modal = self:EnsureTransferModal()
+    if not modal then
+        return false, "Unable to open debug modal."
+    end
+
+    if modal.note then
+        modal.note:SetText(note or "Copy/paste the payload below.")
+    end
+
+    modal.heading:SetText(title or "Debug Output")
+    modal.primaryButton.label:SetText("Select All")
+    modal.primaryButton:SetScript("OnClick", function()
+        modal.edit:HighlightText(0, -1)
+        modal.edit:SetFocus()
+    end)
+
+    modal.edit:SetText(payload or "")
+    modal:Show()
+    modal.edit:SetFocus()
+    modal.edit:HighlightText(0, -1)
+
+    return true
 end
 
 function LogbookUI:CreatePanel(mainFrame)
@@ -1575,7 +2117,7 @@ function LogbookUI:EnsureAchievementDetailOverlay()
 
     -- Small gold corner ornament, matching the achievement-earned popup and
     -- the main window's own chrome. Anchored to the heading's LEFT/RIGHT
-    -- points (which are always vertically centered on the frame) rather than
+    -- points (which are always vertically centred on the frame) rather than
     -- an independently guessed offset, so it can't drift out of line with
     -- the title text again.
     if T and T.Diamond then
@@ -2406,7 +2948,8 @@ function LogbookUI:RefreshRows(entries)
 
             ApplySpottedStateIcons(row, data)
 
-            local source = data.record.kind or data.record.cat or ""
+            local source = (data.record.kind and ns.KindLabel(data.record.kind))
+                or (data.record.cat and ns.CategoryLabel(data.record.cat)) or ""
             if data.isSpotted then
                 local seen = BuildDateString(data.log and data.log.firstSeen)
                 local playerName = data.log and (data.log.lastName or data.log.firstName) or nil

@@ -4,8 +4,67 @@
 -- =============================================================================
 local _, ns = ...
 
--- Bridge global EpithetData (set by data/TitlesDB.lua) into the addon namespace
+-- Bridge global EpithetData (set by data/TitlesDB.enGB.lua) into the addon namespace
 ns.EpithetData = EpithetData
+
+-- ---------------------------------------------------------------------------
+-- titleID index for the bundled DB
+-- ---------------------------------------------------------------------------
+-- The bundled DB (EpithetData.titles) is keyed by lowercase ENGLISH title text,
+-- because that's what the source-of-truth JSON is keyed by upstream. But the
+-- live merge below (Scan) reads a title's *name* via GetTitleName(), which
+-- Blizzard already returns correctly localised for whatever language the
+-- player's game client is running — so on any non-English client, matching by
+-- lowercased name text never finds the English key, and every title silently
+-- loses its rarity/expansion/category/achievement metadata (not mistranslated
+-- — entirely absent), regardless of Epithet's own locale/language override.
+--
+-- Every bundled entry also carries `titleID`, Blizzard's numeric title ID,
+-- which is identical across every client locale (only the display string
+-- differs). Indexing by that instead makes the merge locale-independent.
+-- Built once at load from the existing text-keyed table (the DB is static, so
+-- it never needs rebuilding) — no change needed upstream in TitlesDBCollector.
+local function BuildTitlesByID()
+    local byID = {}
+    if ns.EpithetData and ns.EpithetData.titles then
+        for _, entry in pairs(ns.EpithetData.titles) do
+            if entry.titleID then
+                byID[entry.titleID] = entry
+            end
+        end
+    end
+    return byID
+end
+if ns.EpithetData then
+    ns.EpithetData.titlesByID = BuildTitlesByID()
+end
+
+-- ---------------------------------------------------------------------------
+-- Localised title-database overlays
+-- ---------------------------------------------------------------------------
+-- The enGB base above ships the full dataset. Localised databases
+-- (data/TitlesDB.<code>.lua) are SPARSE overlays keyed by titleID — the stable,
+-- locale-independent join key — that carry only translated free-prose fields
+-- (obtainability_reason, achievement/quest/source_item). Each registers itself:
+--
+--     ns.TitlesDBLocales = ns.TitlesDBLocales or {}
+--     ns.TitlesDBLocales.ruRU = { version = "...", byID = { [660] = { ... } } }
+--
+-- The active display language (ns.activeLocale, chosen in LocaleManager) selects
+-- which overlay applies; Scan() below prefers an overlay field, falling back to
+-- the enGB base. A language switch triggers a ReloadUI, so Scan re-runs fresh and
+-- no live-refresh path is needed. Title NAMES are never taken from here — they
+-- always come from GetTitleName() so they match the game client / nameplates.
+ns.TitlesDBLocales = ns.TitlesDBLocales or {}
+
+-- Returns the byID overlay table for the active locale, or nil when the enGB
+-- base already applies (enGB / auto / no overlay shipped for this language).
+function ns.ResolveTitlesDBOverlay()
+    local code = ns.activeLocale
+    if not code or code == "enGB" then return nil end
+    local pack = ns.TitlesDBLocales[code]
+    return pack and pack.byID or nil
+end
 
 -- Localize WoW APIs (called 700+ times in Scan loop)
 local GetTitleName   = GetTitleName
@@ -36,32 +95,93 @@ ns.QUALITY_COLOURS = {
     [5] = { pip = { r = 1.00, g = 0.50, b = 0.00 }, text = { r = 1.00, g = 0.64, b = 0.20 } }, -- Legendary
 }
 
-ns.QUALITY_NAMES = { "Common", "Uncommon", "Rare", "Epic", "Legendary" }
+-- Rarity tier names (indexed 1..5). Resolved through ns.L at ACCESS time so they
+-- follow the active locale, with the usual English fallback. Kept as a table (not
+-- a plain array) via a metatable so every existing `ns.QUALITY_NAMES[q]` call site
+-- keeps working unchanged.
+local QUALITY_NAME_KEYS = { "COMMON", "UNCOMMON", "RARE", "EPIC", "LEGENDARY" }
+ns.QUALITY_NAMES = setmetatable({}, {
+    __index = function(_, q)
+        local key = QUALITY_NAME_KEYS[q]
+        return key and ns.L[key] or nil
+    end,
+})
 
 ns.EXPANSION_ORDER = {
     "classic", "tbc", "wrath", "cata", "mop", "wod",
     "legion", "bfa", "sl", "df", "tww", "mid",
 }
 
-ns.EXPANSION_LABELS = ns.EpithetData and ns.EpithetData.expansionLabels or {
-    classic = "Classic",
-    tbc     = "The Burning Crusade",
-    wrath   = "Wrath of the Lich King",
-    cata    = "Cataclysm",
-    mop     = "Mists of Pandaria",
-    wod     = "Warlords of Draenor",
-    legion  = "Legion",
-    bfa     = "Battle for Azeroth",
-    sl      = "Shadowlands",
-    df      = "Dragonflight",
-    tww     = "The War Within",
-    mid     = "Midnight",
+-- Resolve `key` through ns.L; if it comes back unresolved (ns.L's own fallback
+-- echoes the key name itself when no locale defines it), use `raw` instead.
+-- This keeps display text forward-compatible with a TitlesDB shipping a brand
+-- new expansion/category/kind code before Epithet has a translation for it —
+-- rather than literally showing "EXPANSION_FOO" on screen.
+local function LocalizedOrRaw(key, raw)
+    if not key then return raw end
+    local v = ns.L[key]
+    if v == key then return raw end
+    return v
+end
+ns.LocalizedOrRaw = LocalizedOrRaw
+
+-- Expansion display names. Resolution order: ns.L["EXPANSION_<CODE>"]
+-- (translated, active locale) -> the raw code as a last resort. The DB no longer
+-- ships English labels (EpithetData.expansionLabels was removed): Epithet's own
+-- locale table is authoritative for display text. A metatable-backed table (not a
+-- plain array) so every existing `ns.EXPANSION_LABELS[key]` call site keeps
+-- working, but re-resolves through the active locale on every access instead of
+-- being snapshotted once at load (which is what lets a runtime language switch
+-- take effect).
+ns.EXPANSION_LABELS = setmetatable({}, {
+    __index = function(_, code)
+        if not code or code == "" then return nil end
+        return LocalizedOrRaw("EXPANSION_" .. code:upper(), code)
+    end,
+})
+
+-- Category display names. Category codes ("PvP", "Raid", ...) upper() cleanly
+-- into their L key suffix (CAT_PVP, CAT_RAID, ...), so no explicit map is
+-- needed; falls back to the raw code for anything not yet recognised.
+function ns.CategoryLabel(code)
+    if not code or code == "" then return code end
+    return LocalizedOrRaw("CAT_" .. code:upper(), code)
+end
+
+-- Source-kind display names. Unlike category, kind codes ("Feat of Strength",
+-- "PvP Rank") contain spaces and don't upper() into a clean identifier, so this
+-- maps them explicitly onto the existing KIND_* locale keys.
+local KIND_LABEL_KEYS = {
+    Achievement = "KIND_ACHIEVEMENT",
+    Quest = "KIND_QUEST",
+    Reputation = "KIND_REPUTATION",
+    ["Feat of Strength"] = "KIND_FEAT",
+    ["PvP Rank"] = "KIND_PVP_RANK",
+    Item = "KIND_ITEM",
+    Promotion = "KIND_PROMOTION",
 }
+function ns.KindLabel(code)
+    if not code or code == "" then return code end
+    return LocalizedOrRaw(KIND_LABEL_KEYS[code], code)
+end
 
 -- Build expansion index for sort ordering
 ns.EXPANSION_INDEX = {}
 for i, key in ipairs(ns.EXPANSION_ORDER) do
     ns.EXPANSION_INDEX[key] = i
+end
+
+-- ---------------------------------------------------------------------------
+-- Blizzard ships unnamed placeholder titles as the literal text "[PH]" (IDs
+-- 660-663 at time of writing). They are not real titles and are excluded from
+-- the bundled database, so exclude them from the scan too — otherwise they show
+-- up as metadata-less rows in the list and inflate both the title count and the
+-- obtainable-progress denominator. Matched exactly; anything looser risks
+-- swallowing a genuine title.
+-- ---------------------------------------------------------------------------
+local function IsPlaceholderTitle(text)
+    if not text then return false end
+    return strlower(text):match("^%s*%[ph%]%s*$") ~= nil
 end
 
 -- ---------------------------------------------------------------------------
@@ -102,17 +222,14 @@ end
 -- ---------------------------------------------------------------------------
 -- Get earned date from achievement info (if available)
 -- ---------------------------------------------------------------------------
-local MONTH_NAMES = {
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
-}
-
 local function GetEarnedDate(sourceID)
     if not sourceID or not GetAchievementInfo then return nil end
     local _, _, _, completed, month, day, year = GetAchievementInfo(sourceID)
     if completed and day and month and year and year > 0 then
-        -- Format as "dd Month yyyy" (UK format)
-        return format("%d %s %d", day, MONTH_NAMES[month] or "?", 2000 + year)
+        -- Format as "dd Month yyyy". Month name comes from the active locale
+        -- (genitive case in ruRU) so dates read naturally in every language.
+        local monthName = (ns.L and month and ns.L["MONTH_" .. month]) or "?"
+        return format("%d %s %d", day, monthName, 2000 + year)
     end
     return nil
 end
@@ -136,26 +253,44 @@ function TitleData:Scan(force)
 
     local maxID = GetNumTitles and GetNumTitles() or 0
 
+    -- Active-locale prose overlay (nil on enGB / when no overlay ships). Resolved
+    -- once here rather than per-title.
+    local overlayByID = ns.ResolveTitlesDBOverlay and ns.ResolveTitlesDBOverlay() or nil
+
     for titleID = 1, maxID do
         local raw = GetTitleName and GetTitleName(titleID) or nil
         if raw then
             local titleType, text = ClassifyTitle(raw)
-            if text and text ~= "" then
+            if text and text ~= "" and not IsPlaceholderTitle(text) then
                 totalCount = totalCount + 1
                 local earned = IsTitleKnown and IsTitleKnown(titleID) or false
                 local isActive = (titleID == currentTitleID)
 
-                -- Lookup in bundled DB by normalised text
+                -- Lookup in bundled DB. Prefer titleID (locale-independent —
+                -- works regardless of the game client's language); fall back
+                -- to matching the normalised name text (English-keyed, so only
+                -- resolves on an English client) for any DB snapshot that
+                -- predates the titleID index.
                 local key = strlower(text)
-                local static = ns.EpithetData and ns.EpithetData.titles and ns.EpithetData.titles[key]
+                local static = (ns.EpithetData and ns.EpithetData.titlesByID and ns.EpithetData.titlesByID[titleID])
+                    or (ns.EpithetData and ns.EpithetData.titles and ns.EpithetData.titles[key])
+
+                -- Sparse localised prose for this title (nil for most), each
+                -- field falling back to the enGB base when the overlay omits it.
+                local over = overlayByID and overlayByID[titleID] or nil
 
                 local record = {
                     titleID   = titleID,
                     text      = text,
                     raw       = raw, -- unclassified GetTitleName() string, reused by TitleIndex to avoid a second API pass
-                    -- Prefer the bundled DB's authoritative type; fall back to
-                    -- the live classification for titles not in the DB.
-                    type      = (static and static.type) or titleType,
+                    -- Prefer the live classification: it comes from THIS client's
+                    -- own GetTitleName string (trailing space = prefix), so it is
+                    -- locale-independent and correct for the exact ID in hand. The
+                    -- DB is keyed by title text, so where one text spans two IDs of
+                    -- differing affix ("the Forbidden" is 495 suffix / 533 prefix)
+                    -- its stored type is right for only one of them. DB is the
+                    -- fallback for anything the client didn't classify.
+                    type      = titleType or (static and static.type),
                     earned    = earned,
                     isActive  = isActive,
                     -- Bundled fields (may be nil)
@@ -163,15 +298,16 @@ function TitleData:Scan(force)
                     exp       = static and static.exp or nil,
                     cat       = static and static.cat or nil,
                     kind      = static and static.kind or nil,
-                    link      = static and static.link or nil,
-                    achievement    = static and static.achievement or nil,
+                    -- Free-prose fields: prefer the active-locale overlay, else
+                    -- the enGB base. (Language-neutral fields never overlay.)
+                    achievement    = (over and over.achievement) or (static and static.achievement) or nil,
                     achievement_id = static and static.achievement_id or nil,
-                    quest          = static and static.quest or nil,
+                    quest          = (over and over.quest) or (static and static.quest) or nil,
                     quest_id       = static and static.quest_id or nil,
-                    source_item    = static and static.source_item or nil,
+                    source_item    = (over and over.source_item) or (static and static.source_item) or nil,
                     rarity    = static and static.rarity or nil,
                     obtainable = static and static.obtainable or nil,
-                    obtainability_reason = static and static.obtainability_reason or nil,
+                    obtainability_reason = (over and over.obtainability_reason) or (static and static.obtainability_reason) or nil,
                     faction   = static and static.faction or nil,
                     availability       = static and static.availability or nil,
                     availability_event = static and static.availability_event or nil,
@@ -185,7 +321,6 @@ function TitleData:Scan(force)
                     (record.achievement or "") .. " " ..
                     (record.quest or "") .. " " ..
                     (record.source_item or "") .. " " ..
-                    (record.link or "") .. " " ..
                     (record.cat or "")
                 )
 

@@ -115,6 +115,142 @@ local function RefreshAll()
     end
 end
 
+-- Account-wide language preference helpers (stored in EpithetDB.global.locale).
+local function GetLocalePref()
+    local g = ns.Epithet and ns.Epithet.db and ns.Epithet.db.global
+    return (g and g.locale) or "auto"
+end
+
+local function SetLocalePref(code)
+    local g = ns.Epithet and ns.Epithet.db and ns.Epithet.db.global
+    if g then g.locale = code end
+end
+
+local function LocalePrefLabel(pref)
+    if not pref or pref == "auto" then
+        return L["OPTIONS_LANGUAGE_AUTO"]
+    end
+    return ns.GetLocaleDisplayName and ns.GetLocaleDisplayName(pref) or pref
+end
+
+-- Builds the "Language" sub-tab and registers it under the parent Epithet
+-- category. Kept separate from the spotting panel so language lives on its own
+-- tab and is unaffected by the title-spotting feature toggle.
+function Options:BuildLanguagePanel(parentCategory)
+    if self.languagePanel then return self.languagePanel end
+
+    if not StaticPopupDialogs["EPITHET_LOCALE_RELOAD"] then
+        StaticPopupDialogs["EPITHET_LOCALE_RELOAD"] = {
+            text = L["OPTIONS_LANGUAGE_RELOAD_PROMPT"],
+            button1 = L["RELOAD_NOW"],
+            button2 = L["LATER"],
+            OnAccept = function() ReloadUI() end,
+            timeout = 0,
+            whileDead = true,
+            hideOnEscape = true,
+            preferredIndex = 3,
+        }
+    end
+
+    local panel = CreateFrame("Frame")
+    panel.name = L["OPTIONS_LANGUAGE_SECTION"]
+    self.languagePanel = panel
+
+    local canvas = panel
+    if T and T.Panel and T.col then
+        local shell = T.Panel(panel, T.col.bg0, T.col.line, 0.35)
+        shell:SetPoint("TOPLEFT", 8, -8)
+        shell:SetPoint("BOTTOMRIGHT", -8, 8)
+
+        local inset = T.Panel(shell, T.col.panel, T.col.lineSoft, 0.35)
+        inset:SetPoint("TOPLEFT", 10, -10)
+        inset:SetPoint("BOTTOMRIGHT", -10, 10)
+        canvas = inset
+
+        if T.Diamond then
+            local tl = T.Diamond(shell, 8, T.col.gold); tl:SetPoint("TOPLEFT", shell, "TOPLEFT", 2, -2)
+            local tr = T.Diamond(shell, 8, T.col.gold); tr:SetPoint("TOPRIGHT", shell, "TOPRIGHT", -2, -2)
+            local bl = T.Diamond(shell, 8, T.col.gold); bl:SetPoint("BOTTOMLEFT", shell, "BOTTOMLEFT", 2, 2)
+            local br = T.Diamond(shell, 8, T.col.gold); br:SetPoint("BOTTOMRIGHT", shell, "BOTTOMRIGHT", -2, 2)
+        end
+    end
+
+    local title = (T and T.Serif and T.Serif(canvas, 20, T.col.goldBright)) or canvas:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+    title:SetPoint("TOPLEFT", 16, -16)
+    title:SetText(L["OPTIONS_LANGUAGE_SECTION"])
+
+    local languageLabel = (T and T.Sans and T.Sans(canvas, 12, T.col.goldDim)) or canvas:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    languageLabel:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -14)
+    languageLabel:SetText(L["OPTIONS_LANGUAGE_LABEL"])
+
+    local languageDrop = CreateFrame("Frame", "EpithetLanguageDropdown", canvas, "UIDropDownMenuTemplate")
+    languageDrop:SetPoint("TOPLEFT", languageLabel, "BOTTOMLEFT", -16, -4)
+    UIDropDownMenu_SetWidth(languageDrop, 240)
+
+    -- When the active locale needs the bundled font (e.g. Russian on a Western
+    -- client), the language names are non-Latin, so the default game font would
+    -- show boxes. Apply the locale font to the dropdown's own text and its menu
+    -- items. Returns nil (no change) when the client font already covers it.
+    local localeFont = T and T.LocaleFontObject and T.LocaleFontObject(12)
+    if localeFont then
+        local dropText = _G["EpithetLanguageDropdownText"]
+        if dropText and dropText.SetFontObject then dropText:SetFontObject(localeFont) end
+    end
+
+    local languageNote = (T and T.Sans and T.Sans(canvas, 11, T.col.faint)) or canvas:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    languageNote:SetPoint("TOPLEFT", languageDrop, "BOTTOMLEFT", 16, -2)
+    languageNote:SetWidth(480)
+    languageNote:SetJustifyH("LEFT")
+    languageNote:SetText(L["OPTIONS_LANGUAGE_NOTE"])
+
+    local function RefreshLanguageDropdown()
+        local pref = GetLocalePref()
+        UIDropDownMenu_SetSelectedValue(languageDrop, pref)
+        UIDropDownMenu_SetText(languageDrop, LocalePrefLabel(pref))
+    end
+    self.RefreshLanguageDropdown = RefreshLanguageDropdown
+
+    UIDropDownMenu_Initialize(languageDrop, function(_, level)
+        if level ~= 1 then return end
+        local current = GetLocalePref()
+        local function addOption(value, label)
+            local info = UIDropDownMenu_CreateInfo()
+            info.text = label
+            info.value = value
+            info.checked = (value == current)
+            if localeFont then info.fontObject = localeFont end
+            info.func = function()
+                if value ~= GetLocalePref() then
+                    SetLocalePref(value)
+                    RefreshLanguageDropdown()
+                    StaticPopup_Show("EPITHET_LOCALE_RELOAD")
+                end
+            end
+            UIDropDownMenu_AddButton(info, level)
+        end
+        addOption("auto", L["OPTIONS_LANGUAGE_AUTO"])
+        for _, code in ipairs(ns.GetAvailableLocales and ns.GetAvailableLocales() or {}) do
+            addOption(code, ns.GetLocaleDisplayName and ns.GetLocaleDisplayName(code) or code)
+        end
+    end)
+
+    panel:SetScript("OnShow", RefreshLanguageDropdown)
+    RefreshLanguageDropdown()
+
+    if BlizzardSettings and BlizzardSettings.RegisterCanvasLayoutSubcategory and parentCategory then
+        local sub = BlizzardSettings.RegisterCanvasLayoutSubcategory(parentCategory, panel, panel.name)
+        self.languageCategory = sub
+        if sub and sub.SetOnRefresh then
+            sub:SetOnRefresh(RefreshLanguageDropdown)
+        end
+    elseif InterfaceOptions_AddCategory then
+        panel.parent = "Epithet"
+        InterfaceOptions_AddCategory(panel)
+    end
+
+    return panel
+end
+
 function Options:Init()
     if self.initialized then return end
     self.initialized = true
@@ -367,7 +503,7 @@ function Options:Init()
     previewTitle:SetJustifyH("LEFT")
     previewTitle:SetJustifyV("MIDDLE")
     previewTitle:SetWordWrap(false)
-    previewTitle:SetText("Trash Master")
+    previewTitle:SetText(L["SAMPLE_TITLE"])
     previewPlate.titleText = previewTitle
 
     local previewRarity = (T and T.Sans and T.Sans(previewPlate.rarityRow, 10, T.col.muted)) or previewPlate.rarityRow:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
@@ -376,7 +512,7 @@ function Options:Init()
     previewRarity:SetJustifyH("LEFT")
     previewRarity:SetJustifyV("MIDDLE")
     previewRarity:SetWordWrap(false)
-    previewRarity:SetText("LEGENDARY")
+    previewRarity:SetText(L["SAMPLE_RARITY"])
     previewPlate.rarityText = previewRarity
 
     local previewNote = (T and T.Sans and T.Sans(previewFrame, 11, T.col.faint)) or previewFrame:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
@@ -399,9 +535,9 @@ function Options:Init()
 
         local useFunnyTitle = profile and profile.previewFunnyTitle
         if useFunnyTitle then
-            previewPlate.titleText:SetText("Slayer of Stupid, Incompetent and Disappointing Minions")
+            previewPlate.titleText:SetText(L["SAMPLE_FUNNY_TITLE"])
         else
-            previewPlate.titleText:SetText("Trash Master")
+            previewPlate.titleText:SetText(L["SAMPLE_TITLE"])
         end
 
         if layoutEngine and layoutEngine.ApplyLayoutToFrame and layoutEngine.SizeTargetPill then
@@ -536,10 +672,10 @@ function Options:Init()
         fadeSliderText:SetText("")
     end
     if fadeSliderLow and fadeSliderLow.SetText then
-        fadeSliderLow:SetText("0.5s")
+        fadeSliderLow:SetText(L["FADE_SLIDER_LOW"])
     end
     if fadeSliderHigh and fadeSliderHigh.SetText then
-        fadeSliderHigh:SetText("20s")
+        fadeSliderHigh:SetText(L["FADE_SLIDER_HIGH"])
     end
 
     local fadeValueText = (T and T.Sans and T.Sans(canvas, 11, T.col.faint)) or canvas:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
@@ -1062,7 +1198,12 @@ function Options:Init()
                 RefreshControls()
             end)
         end
+
+        -- Language lives on its own sub-tab under the Epithet category.
+        self:BuildLanguagePanel(category)
     elseif InterfaceOptions_AddCategory then
         InterfaceOptions_AddCategory(panel)
+        -- Legacy path: register the language panel as a child of "Epithet".
+        self:BuildLanguagePanel(nil)
     end
 end

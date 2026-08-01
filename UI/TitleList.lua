@@ -75,6 +75,14 @@ function TitleList:InitHeader()
         header.SortButton.icon = icon
     end
 
+    -- Route the localized header text through the bundled font under a language
+    -- override whose script the client fonts lack (e.g. Russian on a Western
+    -- client), so the count and sort label don't render as boxes.
+    if T and T.ApplyLocaleFont then
+        T.ApplyLocaleFont(header.Count)
+        T.ApplyLocaleFont(header.SortButton:GetFontString())
+    end
+
     self:UpdateHeaderText(0)
 end
 
@@ -202,8 +210,24 @@ end
 function TitleList:InitTitleRow(row, record)
     row.record = record
 
+    -- Under a language override in a non-client script (e.g. Russian on a Western
+    -- client), the template's client font lacks the glyphs and text renders as
+    -- boxes. Re-point the row's text at the bundled Unicode face once per frame
+    -- (locale is fixed for the session; changing it reloads the UI). No-op on
+    -- locales the client fonts already cover.
+    if not row.localeFontDone and T and T.ApplyLocaleFont then
+        T.ApplyLocaleFont(row.TitleText)
+        T.ApplyLocaleFont(row.SourceText)
+        T.ApplyLocaleFont(row.TypeTag)
+        T.ApplyLocaleFont(row.ActiveChip)
+        row.localeFontDone = true
+    end
+
     -- Create chip background textures on first use
     if not row.ActiveChipBG then
+        -- The chip text is a fixed label; the XML template ships an English
+        -- placeholder, so localise it once here.
+        row.ActiveChip:SetText(L["ACTIVE_TITLE"])
         local bg = row:CreateTexture(nil, "BACKGROUND")
         bg:SetColorTexture(0.91, 0.78, 0.45, 1.0)
         bg:SetPoint("TOPLEFT", row.ActiveChip, "TOPLEFT", -7, 3)
@@ -291,7 +315,8 @@ function TitleList:InitTitleRow(row, record)
     end
 
     -- Row 2: "Kind: Source" (e.g. "Achievement: Glory of the Raider")
-    local kindStr = record.kind or record.cat or ""
+    local kindStr = (record.kind and ns.KindLabel(record.kind))
+        or (record.cat and ns.CategoryLabel(record.cat)) or ""
     local srcStr  = record.achievement or record.quest or record.source_item or ""
     if kindStr ~= "" and srcStr ~= "" then
         row.SourceText:SetText(kindStr .. ": " .. srcStr)
@@ -309,6 +334,7 @@ function TitleList:InitTitleRow(row, record)
         meta:SetPoint("TOPLEFT", row.SourceText, "BOTTOMLEFT", 0, -2)
         meta:SetPoint("RIGHT", row.TypeTag, "LEFT", -8, 0)
         meta:SetJustifyH("LEFT")
+        if T and T.ApplyLocaleFont then T.ApplyLocaleFont(meta) end
         row.MetaText = meta
     end
     local metaParts = metaScratch
@@ -317,7 +343,7 @@ function TitleList:InitTitleRow(row, record)
         metaParts[#metaParts + 1] = ns.EXPANSION_LABELS[record.exp] or record.exp
     end
     if record.cat then
-        metaParts[#metaParts + 1] = record.cat
+        metaParts[#metaParts + 1] = ns.CategoryLabel(record.cat)
     end
     if #metaParts > 0 then
         row.MetaText:SetText(tconcat(metaParts, " \194\183 "))
@@ -366,12 +392,12 @@ function TitleList:InitTitleRow(row, record)
 
     -- Right column 2: Type tag pill (PREFIX / SUFFIX)
     if record.type == "prefix" then
-        row.TypeTag:SetText("PREFIX")
+        row.TypeTag:SetText(L["TYPE_TAG_PREFIX"])
         row.TypeTag:SetTextColor(0.61, 0.55, 0.42)
         row.TypeTagBG:Show()
         row.TypeTagBorder:Show()
     elseif record.type == "suffix" then
-        row.TypeTag:SetText("SUFFIX")
+        row.TypeTag:SetText(L["TYPE_TAG_SUFFIX"])
         row.TypeTag:SetTextColor(0.61, 0.55, 0.42)
         row.TypeTagBG:Show()
         row.TypeTagBorder:Show()
@@ -408,6 +434,10 @@ end
 -- Group header initialiser
 -- ---------------------------------------------------------------------------
 function TitleList:InitGroupHeader(header, data)
+    if not header.localeFontDone and T and T.ApplyLocaleFont then
+        T.ApplyLocaleFont(header.Label)
+        header.localeFontDone = true
+    end
     header.Label:SetText(string.format("%s \194\183 %d", data.label or "", data.count or 0))
     header.Count:SetText("")
 end

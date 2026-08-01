@@ -129,6 +129,82 @@
                     </Layer>
                 </Layers>
                 <Frames>
+                    <!-- Settings button (opens Blizzard options -> Epithet) -->
+                    <Button name="$parentSettingsButton" parentKey="SettingsButton">
+                        <Size x="26" y="26"/>
+                        <Anchors>
+                            <Anchor point="RIGHT" x="-76" y="0"/>
+                        </Anchors>
+                        <Layers>
+                            <Layer level="BACKGROUND">
+                                <Texture parentKey="BG" file="Interface\Buttons\WHITE8X8" setAllPoints="true">
+                                    <Color r="0.16" g="0.12" b="0.07" a="0.95"/>
+                                </Texture>
+                            </Layer>
+                            <Layer level="ARTWORK">
+                                <Texture parentKey="BorderTop" file="Interface\Buttons\WHITE8X8">
+                                    <Size x="0" y="1"/>
+                                    <Anchors>
+                                        <Anchor point="TOPLEFT" x="0" y="0"/>
+                                        <Anchor point="TOPRIGHT" x="0" y="0"/>
+                                    </Anchors>
+                                    <Color r="0.72" g="0.60" b="0.36" a="0.82"/>
+                                </Texture>
+                                <Texture parentKey="BorderBottom" file="Interface\Buttons\WHITE8X8">
+                                    <Size x="0" y="1"/>
+                                    <Anchors>
+                                        <Anchor point="BOTTOMLEFT" x="0" y="0"/>
+                                        <Anchor point="BOTTOMRIGHT" x="0" y="0"/>
+                                    </Anchors>
+                                    <Color r="0.72" g="0.60" b="0.36" a="0.82"/>
+                                </Texture>
+                                <Texture parentKey="BorderLeft" file="Interface\Buttons\WHITE8X8">
+                                    <Size x="1" y="0"/>
+                                    <Anchors>
+                                        <Anchor point="TOPLEFT" x="0" y="-1"/>
+                                        <Anchor point="BOTTOMLEFT" x="0" y="1"/>
+                                    </Anchors>
+                                    <Color r="0.72" g="0.60" b="0.36" a="0.82"/>
+                                </Texture>
+                                <Texture parentKey="BorderRight" file="Interface\Buttons\WHITE8X8">
+                                    <Size x="1" y="0"/>
+                                    <Anchors>
+                                        <Anchor point="TOPRIGHT" x="0" y="-1"/>
+                                        <Anchor point="BOTTOMRIGHT" x="0" y="1"/>
+                                    </Anchors>
+                                    <Color r="0.72" g="0.60" b="0.36" a="0.82"/>
+                                </Texture>
+                                <Texture parentKey="Icon" file="Interface\Buttons\UI-OptionsButton">
+                                    <Size x="14" y="14"/>
+                                    <Anchors>
+                                        <Anchor point="CENTER"/>
+                                    </Anchors>
+                                    <Color r="0.95" g="0.85" b="0.55" a="0.95"/>
+                                </Texture>
+                            </Layer>
+                        </Layers>
+                        <Scripts>
+                            <OnClick>
+                                -- Wired from Lua in MainFrame:Init()
+                            </OnClick>
+                            <OnEnter>
+                                self.Icon:SetVertexColor(1.0, 0.95, 0.75, 1.0)
+                                self.BG:SetVertexColor(0.21, 0.16, 0.10, 0.98)
+                                self.BorderTop:SetVertexColor(0.91, 0.78, 0.45, 1.0)
+                                self.BorderBottom:SetVertexColor(0.91, 0.78, 0.45, 1.0)
+                                self.BorderLeft:SetVertexColor(0.91, 0.78, 0.45, 1.0)
+                                self.BorderRight:SetVertexColor(0.91, 0.78, 0.45, 1.0)
+                            </OnEnter>
+                            <OnLeave>
+                                self.Icon:SetVertexColor(0.95, 0.85, 0.55, 0.95)
+                                self.BG:SetVertexColor(0.16, 0.12, 0.07, 0.95)
+                                self.BorderTop:SetVertexColor(0.72, 0.60, 0.36, 0.82)
+                                self.BorderBottom:SetVertexColor(0.72, 0.60, 0.36, 0.82)
+                                self.BorderLeft:SetVertexColor(0.72, 0.60, 0.36, 0.82)
+                                self.BorderRight:SetVertexColor(0.72, 0.60, 0.36, 0.82)
+                            </OnLeave>
+                        </Scripts>
+                    </Button>
                     <!-- Info / About button -->
                     <Button name="$parentInfoButton" parentKey="InfoButton">
                         <Size x="26" y="26"/>
@@ -136,20 +212,50 @@
                             <Anchor point="RIGHT" x="-42" y="0"/>
                         </Anchors>
                         <Layers>
+                            <Layer level="BACKGROUND">
+                                <Texture parentKey="BG" file="Interface\Buttons\WHITE8X8" setAllPoints="true">
+                                    <Color r="0.16" g="0.12" b="0.07" a="0.95"/>
+                                </Texture>
+                            </Layer>
                             <Layer level="ARTWORK">
-                                <Texture parentKey="Ring" file="Interface\AddOns\Epithet\icons\ui\epithet-ui-circle-ring-32">
-                                    <Size x="26" y="26"/>
+                                <Texture parentKey="BorderTop" file="Interface\Buttons\WHITE8X8">
+                                    <Size x="0" y="1"/>
                                     <Anchors>
-                                        <Anchor point="CENTER"/>
+                                        <Anchor point="TOPLEFT" x="0" y="0"/>
+                                        <Anchor point="TOPRIGHT" x="0" y="0"/>
                                     </Anchors>
-                                    <Color r="1.0" g="1.0" b="1.0" a="0.85"/>
+                                    <Color r="0.72" g="0.60" b="0.36" a="0.82"/>
+                                </Texture>
+                                <Texture parentKey="BorderBottom" file="Interface\Buttons\WHITE8X8">
+                                    <Size x="0" y="1"/>
+                                    <Anchors>
+                                        <Anchor point="BOTTOMLEFT" x="0" y="0"/>
+                                        <Anchor point="BOTTOMRIGHT" x="0" y="0"/>
+                                    </Anchors>
+                                    <Color r="0.72" g="0.60" b="0.36" a="0.82"/>
+                                </Texture>
+                                <Texture parentKey="BorderLeft" file="Interface\Buttons\WHITE8X8">
+                                    <Size x="1" y="0"/>
+                                    <Anchors>
+                                        <Anchor point="TOPLEFT" x="0" y="-1"/>
+                                        <Anchor point="BOTTOMLEFT" x="0" y="1"/>
+                                    </Anchors>
+                                    <Color r="0.72" g="0.60" b="0.36" a="0.82"/>
+                                </Texture>
+                                <Texture parentKey="BorderRight" file="Interface\Buttons\WHITE8X8">
+                                    <Size x="1" y="0"/>
+                                    <Anchors>
+                                        <Anchor point="TOPRIGHT" x="0" y="-1"/>
+                                        <Anchor point="BOTTOMRIGHT" x="0" y="1"/>
+                                    </Anchors>
+                                    <Color r="0.72" g="0.60" b="0.36" a="0.82"/>
                                 </Texture>
                                 <FontString parentKey="Label" inherits="GameFontNormal"
                                             text="i" justifyH="CENTER">
                                     <Anchors>
                                         <Anchor point="CENTER" x="0" y="-1"/>
                                     </Anchors>
-                                    <Color r="1.0" g="1.0" b="1.0" a="0.9"/>
+                                    <Color r="0.92" g="0.85" b="0.67" a="0.95"/>
                                 </FontString>
                             </Layer>
                         </Layers>
@@ -158,12 +264,20 @@
                                 -- Wired from Lua in MainFrame:Init()
                             </OnClick>
                             <OnEnter>
-                                self.Label:SetTextColor(1.0, 1.0, 1.0, 1.0)
-                                self.Ring:SetVertexColor(1.0, 1.0, 1.0, 1.0)
+                                self.Label:SetTextColor(0.96, 0.91, 0.78, 1.0)
+                                self.BG:SetVertexColor(0.21, 0.16, 0.10, 0.98)
+                                self.BorderTop:SetVertexColor(0.91, 0.78, 0.45, 1.0)
+                                self.BorderBottom:SetVertexColor(0.91, 0.78, 0.45, 1.0)
+                                self.BorderLeft:SetVertexColor(0.91, 0.78, 0.45, 1.0)
+                                self.BorderRight:SetVertexColor(0.91, 0.78, 0.45, 1.0)
                             </OnEnter>
                             <OnLeave>
-                                self.Label:SetTextColor(1.0, 1.0, 1.0, 0.9)
-                                self.Ring:SetVertexColor(1.0, 1.0, 1.0, 0.85)
+                                self.Label:SetTextColor(0.92, 0.85, 0.67, 0.95)
+                                self.BG:SetVertexColor(0.16, 0.12, 0.07, 0.95)
+                                self.BorderTop:SetVertexColor(0.72, 0.60, 0.36, 0.82)
+                                self.BorderBottom:SetVertexColor(0.72, 0.60, 0.36, 0.82)
+                                self.BorderLeft:SetVertexColor(0.72, 0.60, 0.36, 0.82)
+                                self.BorderRight:SetVertexColor(0.72, 0.60, 0.36, 0.82)
                             </OnLeave>
                         </Scripts>
                     </Button>
@@ -174,7 +288,44 @@
                             <Anchor point="RIGHT" x="-8" y="0"/>
                         </Anchors>
                         <Layers>
+                            <Layer level="BACKGROUND">
+                                <Texture parentKey="BG" file="Interface\Buttons\WHITE8X8" setAllPoints="true">
+                                    <Color r="0.16" g="0.12" b="0.07" a="0.95"/>
+                                </Texture>
+                            </Layer>
                             <Layer level="ARTWORK">
+                                <Texture parentKey="BorderTop" file="Interface\Buttons\WHITE8X8">
+                                    <Size x="0" y="1"/>
+                                    <Anchors>
+                                        <Anchor point="TOPLEFT" x="0" y="0"/>
+                                        <Anchor point="TOPRIGHT" x="0" y="0"/>
+                                    </Anchors>
+                                    <Color r="0.85" g="0.54" b="0.32" a="0.95"/>
+                                </Texture>
+                                <Texture parentKey="BorderBottom" file="Interface\Buttons\WHITE8X8">
+                                    <Size x="0" y="1"/>
+                                    <Anchors>
+                                        <Anchor point="BOTTOMLEFT" x="0" y="0"/>
+                                        <Anchor point="BOTTOMRIGHT" x="0" y="0"/>
+                                    </Anchors>
+                                    <Color r="0.85" g="0.54" b="0.32" a="0.95"/>
+                                </Texture>
+                                <Texture parentKey="BorderLeft" file="Interface\Buttons\WHITE8X8">
+                                    <Size x="1" y="0"/>
+                                    <Anchors>
+                                        <Anchor point="TOPLEFT" x="0" y="-1"/>
+                                        <Anchor point="BOTTOMLEFT" x="0" y="1"/>
+                                    </Anchors>
+                                    <Color r="0.85" g="0.54" b="0.32" a="0.95"/>
+                                </Texture>
+                                <Texture parentKey="BorderRight" file="Interface\Buttons\WHITE8X8">
+                                    <Size x="1" y="0"/>
+                                    <Anchors>
+                                        <Anchor point="TOPRIGHT" x="0" y="-1"/>
+                                        <Anchor point="BOTTOMRIGHT" x="0" y="1"/>
+                                    </Anchors>
+                                    <Color r="0.85" g="0.54" b="0.32" a="0.95"/>
+                                </Texture>
                                 <Texture parentKey="Icon"
                                          file="Interface\AddOns\Epithet\icons\ui\epithet-ui-close-16">
                                     <Size x="18" y="18"/>
@@ -190,10 +341,20 @@
                                 EpithetMainFrame:Hide()
                             </OnClick>
                             <OnEnter>
-                                self.Icon:SetVertexColor(1.0, 1.0, 1.0, 1.0)
+                                self.Icon:SetVertexColor(0.99, 0.89, 0.74, 1.0)
+                                self.BG:SetVertexColor(0.22, 0.14, 0.09, 0.98)
+                                self.BorderTop:SetVertexColor(0.97, 0.70, 0.45, 1.0)
+                                self.BorderBottom:SetVertexColor(0.97, 0.70, 0.45, 1.0)
+                                self.BorderLeft:SetVertexColor(0.97, 0.70, 0.45, 1.0)
+                                self.BorderRight:SetVertexColor(0.97, 0.70, 0.45, 1.0)
                             </OnEnter>
                             <OnLeave>
-                                self.Icon:SetVertexColor(1.0, 1.0, 1.0, 0.8)
+                                self.Icon:SetVertexColor(0.95, 0.80, 0.66, 0.92)
+                                self.BG:SetVertexColor(0.16, 0.12, 0.07, 0.95)
+                                self.BorderTop:SetVertexColor(0.85, 0.54, 0.32, 0.95)
+                                self.BorderBottom:SetVertexColor(0.85, 0.54, 0.32, 0.95)
+                                self.BorderLeft:SetVertexColor(0.85, 0.54, 0.32, 0.95)
+                                self.BorderRight:SetVertexColor(0.85, 0.54, 0.32, 0.95)
                             </OnLeave>
                         </Scripts>
                     </Button>

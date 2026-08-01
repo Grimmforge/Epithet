@@ -19,9 +19,43 @@ local InCombatLockdown = InCombatLockdown
 local IsInGroup = IsInGroup
 local IsInRaid = IsInRaid
 local strlower = strlower
-local strupper = strupper
 local floor = math.floor
 local ceil = math.ceil
+local sbyte = string.byte
+local schar = string.char
+
+-- Locale-safe uppercasing. Lua's strupper only folds ASCII, so with the language
+-- override a non-Latin locale (e.g. Russian shown on an enUS client) would be
+-- left in mixed case. This folds ASCII, Latin-1 Supplement and Cyrillic (all
+-- 2-byte UTF-8) by code point; 3+ byte sequences (e.g. CJK, which have no case)
+-- and the German sharp-s pass through unchanged.
+local function LocaleUpper(s)
+    if not s or s == "" then return s end
+    local out, i, n = {}, 1, #s
+    while i <= n do
+        local b = sbyte(s, i)
+        if b < 0x80 then
+            if b >= 0x61 and b <= 0x7A then b = b - 0x20 end   -- a-z
+            out[#out + 1] = schar(b)
+            i = i + 1
+        elseif b >= 0xC0 and b < 0xE0 and i < n then
+            local cp = (b % 0x20) * 0x40 + (sbyte(s, i + 1) % 0x40)
+            if (cp >= 0x00E0 and cp <= 0x00FE and cp ~= 0x00F7)  -- à-þ (Latin-1)
+                or (cp >= 0x0430 and cp <= 0x044F) then          -- а-я (Cyrillic)
+                cp = cp - 0x20
+            elseif cp == 0x0451 then                             -- ё -> Ё
+                cp = 0x0401
+            end
+            out[#out + 1] = schar(0xC0 + floor(cp / 0x40), 0x80 + (cp % 0x40))
+            i = i + 2
+        else
+            out[#out + 1] = schar(b)
+            i = i + 1
+        end
+    end
+    return table.concat(out)
+end
+ns.Strupper = ns.Strupper or LocaleUpper
 
 local WHITE = "Interface\\Buttons\\WHITE8X8"
 local NAMEPLATE_FADE_OUT_DURATION = 0.75
@@ -94,6 +128,19 @@ function SocialLayer:SetBlizzardTargetNameAlpha(alpha)
     end
 end
 
+function SocialLayer:SetTargetFrameInteractionEnabled(enabled)
+    local frame = self.targetFrame
+    if not (frame and frame.EnableMouse) then return end
+
+    enabled = enabled and true or false
+    if frame._epithetInteractionEnabled == enabled then
+        return
+    end
+
+    frame._epithetInteractionEnabled = enabled
+    frame:EnableMouse(enabled)
+end
+
 function SocialLayer:ResetNameplateFade()
     self.fadeStartTime = nil
     if self.targetFrame and self.targetFrame.SetAlpha then
@@ -102,6 +149,7 @@ function SocialLayer:ResetNameplateFade()
     if self.targetFrame and self.targetFrame.portraitModel and self.targetFrame.portraitModel.SetAlpha then
         self.targetFrame.portraitModel:SetAlpha(1)
     end
+    self:SetTargetFrameInteractionEnabled(true)
     self:SetBlizzardTargetNameAlpha(1)
 end
 
@@ -118,6 +166,7 @@ function SocialLayer:StartNameplateFade(profile)
     if self.targetFrame and self.targetFrame.portraitModel and self.targetFrame.portraitModel.SetAlpha then
         self.targetFrame.portraitModel:SetAlpha(1)
     end
+    self:SetTargetFrameInteractionEnabled(true)
     self:SetBlizzardTargetNameAlpha(1)
 end
 
@@ -136,6 +185,7 @@ function SocialLayer:UpdateNameplateFade(profile)
         if self.targetFrame and self.targetFrame.portraitModel and self.targetFrame.portraitModel.SetAlpha and self.targetFrame.portraitModel.IsShown and self.targetFrame.portraitModel:IsShown() then
             self.targetFrame.portraitModel:SetAlpha(1)
         end
+        self:SetTargetFrameInteractionEnabled(true)
         self:SetBlizzardTargetNameAlpha(1)
         return
     end
@@ -153,6 +203,15 @@ function SocialLayer:UpdateNameplateFade(profile)
     if self.targetFrame and self.targetFrame.portraitModel and self.targetFrame.portraitModel.SetAlpha and self.targetFrame.portraitModel.IsShown and self.targetFrame.portraitModel:IsShown() then
         self.targetFrame.portraitModel:SetAlpha(alpha)
     end
+
+    if alpha <= 0.01 then
+        -- Keep the frame hidden to input once fully faded.
+        self:SetTargetFrameInteractionEnabled(false)
+        self.fadeStartTime = nil
+    else
+        self:SetTargetFrameInteractionEnabled(true)
+    end
+
     self:SetBlizzardTargetNameAlpha(alpha)
 end
 
@@ -187,15 +246,15 @@ end
 
 function SocialLayer:GetRecordForUnit(unit)
     if not unit or not UnitExists or not UnitExists(unit) then return nil end
-    local displayName = UnitPVPName and UnitPVPName(unit)
+    local displayName = UnitPVPName and UnitPVPName(unit) or nil
     local targetFrameText = nil
     if unit == "target" and TargetFrameName and TargetFrameName.GetText then
         targetFrameText = TargetFrameName:GetText()
-        if (not displayName or displayName == "") and targetFrameText and targetFrameText ~= "" then
+        if not displayName then
             displayName = targetFrameText
         end
     end
-    if not displayName or displayName == "" then return nil end
+    if not displayName then return nil end
 
     local unitName = UnitName and UnitName(unit)
     local fullName = UnitFullName and UnitFullName(unit)
@@ -207,7 +266,7 @@ function SocialLayer:GetRecordForUnit(unit)
     local titleType = nil
 
     local function ParseDisplay(candidate)
-        if not candidate or candidate == "" then return nil, nil end
+        if not candidate then return nil, nil end
 
         if candidate:find("^" .. escapedBase) then
             local suffix = candidate:sub(#baseName + 1)
@@ -231,7 +290,7 @@ function SocialLayer:GetRecordForUnit(unit)
     end
 
     local candidates = { displayName }
-    if targetFrameText and targetFrameText ~= "" and targetFrameText ~= displayName then
+    if targetFrameText and targetFrameText ~= "" then
         candidates[#candidates + 1] = targetFrameText
     end
 
@@ -249,6 +308,20 @@ function SocialLayer:GetRecordForUnit(unit)
 
     local key = NormalizeName(titleText)
     local static = ns.EpithetData and ns.EpithetData.titles and ns.EpithetData.titles[key]
+
+    if not static then
+        -- The English-keyed text match missed — most likely because the game
+        -- client isn't running in English, so the nameplate's title text isn't
+        -- in the DB's language and never can match this way. Fall back to
+        -- titleID resolution: TitleIndex derives its fragment map from THIS
+        -- SAME client's own GetTitleName catalogue, so it works regardless of
+        -- client locale.
+        local resolvedID = ns.TitleIndex and ns.TitleIndex:Resolve(unit)
+        if resolvedID and ns.EpithetData and ns.EpithetData.titlesByID then
+            static = ns.EpithetData.titlesByID[resolvedID]
+        end
+    end
+
     if static then
         return {
             unit = unit,
@@ -256,7 +329,10 @@ function SocialLayer:GetRecordForUnit(unit)
             titleID = static.titleID,
             -- Preserve in-game casing from the visible nameplate when possible.
             titleText = titleText or static.text,
-            type = static.type or titleType,
+            -- ParseDisplay read the affix off the rendered name, i.e. where the
+            -- game itself put it for THIS player — more reliable than the
+            -- text-keyed DB when one title text spans two IDs of differing type.
+            type = titleType or static.type,
             q = static.q,
             rarity = static.rarity,
             obtainable = static.obtainable,
@@ -537,8 +613,8 @@ function SocialLayer:FormatTargetPill(record)
     if not quality or quality < 1 or quality > 5 then
         quality = 1
     end
-    local rarityName = (ns.QUALITY_NAMES and ns.QUALITY_NAMES[quality]) or "Unknown"
-    return record.titleText, quality, strupper(rarityName)
+    local rarityName = (ns.QUALITY_NAMES and ns.QUALITY_NAMES[quality]) or L["RARITY_UNKNOWN"]
+    return record.titleText, quality, LocaleUpper(rarityName)
 end
 
 function SocialLayer:OpenTargetInEpithet()

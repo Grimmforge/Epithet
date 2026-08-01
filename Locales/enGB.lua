@@ -5,13 +5,20 @@
 -- =============================================================================
 local _, ns = ...
 
-local L = {}
-ns.L = L
+-- enGB is the base / default locale: the full English string set that every
+-- other locale overlays onto (untranslated keys fall back here). GetLocale()
+-- returns "enUS" for both US and GB clients, so this file also serves enUS.
+--
+-- The localisation machinery — the registry, the ns.L proxy, and the resolution
+-- API — lives in LocaleManager.lua, which loads first. This file just registers
+-- its strings into ns.Locales.
+ns.Locales = ns.Locales or {}
 
--- Common glyphs (decimal byte escapes)
-local DOT   = "\194\183"        -- middle dot ·
-local DASH  = "\226\128\148"    -- em dash —
-local CHECK = "\226\156\147"    -- check mark ✓
+local L = {}
+ns.Locales.enGB = L
+
+-- Shared punctuation glyphs (defined once in LocaleManager.lua).
+local DOT, DASH = ns.Glyphs.DOT, ns.Glyphs.DASH
 
 -- Window
 L["WINDOW_TITLE"] = "TITLES"
@@ -47,6 +54,7 @@ L["UNCOMMON"] = "Uncommon"
 L["RARE"] = "Rare"
 L["EPIC"] = "Epic"
 L["LEGENDARY"] = "Legendary"
+L["UNRANKED"] = "Unranked"
 
 -- List header
 L["N_TITLES"] = "%d titles"
@@ -91,12 +99,14 @@ L["NO_SELECTION"] = "Select a title to view its source and rarity."
 L["RARITY"] = "RARITY"
 L["SOURCE_LEGEND"] = "SOURCE"
 
--- Rarity explanation (fallback only; primary copy lives in EpithetData.rarityNote)
-L["RARITY_NOTE"] = "Rarity is estimated from the global earn-rate of the linked source " .. DASH ..
-    " the share of active level-capped characters who hold it, drawn from Blizzard's achievement " ..
-    "statistics. Sources held by fewer than 1% of players are rated Legendary; the most widely-held " ..
-    "rank and holiday titles are Common. Estimates refresh weekly and are independent of a title's " ..
-    "in-game item-quality colour."
+-- Rarity explanation shown in the rarity info modal. Keep the wording in sync
+-- with the rarity algorithm (TitlesDBCollector rarity.js).
+L["RARITY_NOTE"] = "Rarity is a 0-100 percentage estimating how common a title is among the " ..
+    "active player base. 100 = most widely held, <1 = extremely rare. Calculated from external " ..
+    "profile statistics (online popularity data sources). Quality tier (q) reflects prestige: " ..
+    "determined by source origin (Gladiator=5, Raid meta=3, etc.) with a scarcity bump applied to " ..
+    "permanently unobtainable titles held by few players (unobtainable + <2% ownership = Epic " ..
+    "minimum, <5% = Rare minimum)."
 
 -- Minimap
 L["MINIMAP_TOOLTIP_TITLE"] = "Epithet"
@@ -409,3 +419,124 @@ L["AVAILABILITY_PROMOTIONAL"] = "Promotional"
 L["AVAILABILITY_TEMPORARY"] = "Temporary"
 L["AVAILABILITY_REMOVED"] = "Removed"
 L["AVAILABILITY_PERMANENT"] = "Permanent"
+
+-- Previously-missing keys (had inline English fallbacks in code)
+L["SOCIAL_HIDE_IN_COMBAT"] = "Hide target nameplate during combat"
+L["SOCIAL_HIDE_IN_GROUP"] = "Hide target nameplate when grouped"
+L["SOCIAL_LAYOUT_ANIMATED_PORTRAIT_TOGGLE"] = "Animate the target portrait"
+L["SPOTTING_META_TITLE"] = "Spotting Notes"
+L["SPOTTING_META_DESC"] = "Target players in the open world to record the titles they are wearing."
+L["SPOT_ACHV_SECRET_EARNED_SUFFIX"] = "(secret)"
+L["SPOT_ACHV_SECRET_EARNED_NOTE"] = "You uncovered a secret achievement."
+
+-- Window banner (main frame title bar)
+L["BANNER_LEFT"] = "EPITHET"
+L["BANNER_RIGHT"] = "THE TITLE SHOWCASE"
+
+-- Type tags (uppercase pills on title rows)
+L["TYPE_TAG_PREFIX"] = "PREFIX"
+L["TYPE_TAG_SUFFIX"] = "SUFFIX"
+
+-- Rarity fallback
+L["RARITY_UNKNOWN"] = "UNKNOWN"
+
+-- Minimap tooltip collected line
+L["MINIMAP_TOOLTIP_COLLECTED"] = "Collected: %d / %d"
+
+-- Slash command feedback
+L["SLASH_SCAN_COMPLETE"] = "Title scan complete: %d / %d"
+
+-- Version footer (two rows). %s placeholders filled at runtime.
+L["VERSION_LINE1_FMT"] = "Epithet v%s  " .. DOT .. "  Interface %s"
+L["VERSION_LINE2_FMT"] = "TitlesDB v%s  " .. DOT .. "  Updated %s"
+L["VERSION_DATE_UNKNOWN"] = "unknown"
+
+-- Source-kind legend (bottom bar hover labels)
+L["LEGEND_ACHIEVEMENT"] = "Achievement"
+L["LEGEND_QUEST"] = "Quest"
+L["LEGEND_REPUTATION"] = "Reputation"
+L["LEGEND_PVP"] = "PvP"
+L["LEGEND_FEAT"] = "Feat"
+L["LEGEND_EXPLORATION"] = "Exploration"
+L["LEGEND_RAID"] = "Raid"
+
+-- Layout preview sample data
+L["SAMPLE_TITLE"] = "Trash Master"
+L["SAMPLE_RARITY"] = "LEGENDARY"
+L["SAMPLE_FUNNY_TITLE"] = "Slayer of Stupid, Incompetent and Disappointing Minions"
+
+-- Fade slider bound labels
+L["FADE_SLIDER_LOW"] = "0.5s"
+L["FADE_SLIDER_HIGH"] = "20s"
+
+-- Month names (used to format achievement earned dates: "dd Month yyyy")
+L["MONTH_1"]  = "January"
+L["MONTH_2"]  = "February"
+L["MONTH_3"]  = "March"
+L["MONTH_4"]  = "April"
+L["MONTH_5"]  = "May"
+L["MONTH_6"]  = "June"
+L["MONTH_7"]  = "July"
+L["MONTH_8"]  = "August"
+L["MONTH_9"]  = "September"
+L["MONTH_10"] = "October"
+L["MONTH_11"] = "November"
+L["MONTH_12"] = "December"
+
+-- Expansion names (filter sidebar, detail panel, list rows). Keyed to match
+-- the DB's stable expansion codes uppercased, e.g. "tbc" -> EXPANSION_TBC.
+L["EXPANSION_CLASSIC"] = "Classic"
+L["EXPANSION_TBC"] = "The Burning Crusade"
+L["EXPANSION_WRATH"] = "Wrath of the Lich King"
+L["EXPANSION_CATA"] = "Cataclysm"
+L["EXPANSION_MOP"] = "Mists of Pandaria"
+L["EXPANSION_WOD"] = "Warlords of Draenor"
+L["EXPANSION_LEGION"] = "Legion"
+L["EXPANSION_BFA"] = "Battle for Azeroth"
+L["EXPANSION_SL"] = "Shadowlands"
+L["EXPANSION_DF"] = "Dragonflight"
+L["EXPANSION_TWW"] = "The War Within"
+L["EXPANSION_MID"] = "Midnight"
+
+-- Category names (filter sidebar, detail panel, list rows, group headers).
+-- Keyed to match the DB's stable category codes uppercased, e.g. "PvP" -> CAT_PVP.
+L["CAT_PVP"] = "PvP"
+L["CAT_RAID"] = "Raid"
+L["CAT_REPUTATION"] = "Reputation"
+L["CAT_QUEST"] = "Quest"
+L["CAT_PROFESSION"] = "Profession"
+L["CAT_HOLIDAY"] = "Holiday"
+L["CAT_EXPLORATION"] = "Exploration"
+L["CAT_ACHIEVEMENT"] = "Achievement"
+L["CAT_CAMPAIGN"] = "Campaign"
+L["CATEGORY_UNCATEGORIZED"] = "Uncategorized"
+
+-- Detail panel meta-grid row labels
+L["EARNED_LABEL"] = "Earned"
+L["STATUS_LABEL"] = "Status"
+
+-- "ACTIVE" chip on the currently-equipped title's list row
+L["ACTIVE_TITLE"] = "ACTIVE"
+
+-- About / info modal ("Grimmsforge" and "World of Warcraft" stay as-is: brands)
+L["ABOUT_CRAFTED"] = "Epithet is crafted by Grimmsforge."
+L["ABOUT_TAGLINE"] = "Open-source tools and addons for World of Warcraft."
+
+-- Title-bar settings button
+L["SETTINGS_BUTTON_TOOLTIP"] = "Open Epithet settings"
+L["INFO_BUTTON_TOOLTIP"] = "About Epithet"
+
+-- Language names (shown in the picker, in the active language)
+L["LANGUAGE_ENGLISH"] = "English"
+L["LANGUAGE_RUSSIAN"] = "Russian"
+
+-- Options: language section
+L["OPTIONS_LANGUAGE_SECTION"] = "Language"
+L["OPTIONS_LANGUAGE_LABEL"] = "Add-on language"
+L["OPTIONS_LANGUAGE_AUTO"] = "Automatic (client default)"
+L["OPTIONS_LANGUAGE_NOTE"] = "Sets the language Epithet uses, independent of your game client. The interface reloads when you change it."
+L["OPTIONS_LANGUAGE_RELOAD_PROMPT"] = "Change Epithet's language and reload the interface now?"
+L["RELOAD_NOW"] = "Reload Now"
+L["LATER"] = "Later"
+
+-- The locale registry, ns.L proxy, and resolution API live in LocaleManager.lua.

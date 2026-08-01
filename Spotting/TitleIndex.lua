@@ -191,8 +191,12 @@ function TitleIndex:Resolve(unit)
     end
 
     local base = UnitName and UnitName(unit)
-    local full = UnitPVPName and UnitPVPName(unit)
-    if not full or not base or full == base then
+    local full = UnitPVPName and UnitPVPName(unit) or nil
+    if unit == "target" and TargetFrameName and TargetFrameName.GetText then
+        full = full or TargetFrameName:GetText()
+    end
+
+    if not full or full == "" or not base or base == "" then
         return nil
     end
 

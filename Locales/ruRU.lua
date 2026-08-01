@@ -5,13 +5,16 @@
 -- =============================================================================
 local _, ns = ...
 
+-- Register the Russian table into the locale registry. It is always loaded (no
+-- GetLocale guard) so the language picker can offer it on any client; the active
+-- locale is chosen by ns.ApplyLocale, and untranslated keys fall back to the
+-- English base automatically (see enGB.lua).
+ns.Locales = ns.Locales or {}
 local L = {}
-ns.L = L
+ns.Locales.ruRU = L
 
--- Common glyphs (decimal byte escapes)
-local DOT   = "\194\183"        -- middle dot ·
-local DASH  = "\226\128\148"    -- em dash —
-local CHECK = "\226\156\147"    -- check mark ✓
+-- Shared punctuation glyphs (defined once in LocaleManager.lua).
+local DOT, DASH = ns.Glyphs.DOT, ns.Glyphs.DASH
 
 -- Window
 L["WINDOW_TITLE"] = "ЗВАНИЯ"
@@ -47,6 +50,7 @@ L["UNCOMMON"] = "Необычное"
 L["RARE"] = "Редкое"
 L["EPIC"] = "Эпическое"
 L["LEGENDARY"] = "Легендарное"
+L["UNRANKED"] = "Без ранга"
 
 -- List header
 L["N_TITLES"] = "Званий: %d"
@@ -91,12 +95,13 @@ L["NO_SELECTION"] = "Выберите звание, чтобы просмотр�
 L["RARITY"] = "РЕДКОСТЬ"
 L["SOURCE_LEGEND"] = "ИСТОЧНИК"
 
--- Rarity explanation (fallback only; primary copy lives in EpithetData.rarityNote)
-L["RARITY_NOTE"] = "Редкость оценивается на основе глобальной частоты получения связанного источника " .. DASH ..
-    " доли активных персонажей максимального уровня, у которых он есть, согласно данным статистики " ..
-    "достижений Blizzard. Источники, которыми владеют менее 1% игроков, считаются легендарными; самые " ..
-    "распространенные ранговые и праздничные звания считаются обычными. Оценки обновляются каждую неделю " ..
-    "и не зависят от цвета качества внутриигровых предметов для этого звания."
+-- Rarity explanation shown in the rarity info modal.
+L["RARITY_NOTE"] = "Редкость " .. DASH .. " это процент от 0 до 100, показывающий, насколько распространено " ..
+    "звание среди активных игроков. 100 = наиболее распространённое, <1 = крайне редкое. Рассчитывается на " ..
+    "основе внешней статистики профилей (онлайн-данные о популярности). Ранг качества (q) отражает престиж: " ..
+    "определяется происхождением источника (Гладиатор=5, рейдовая мета=3 и т. д.), с повышением ранга за " ..
+    "редкость для навсегда недоступных званий, которыми владеют немногие (недоступно + владение <2% = " ..
+    "минимум Эпическое, <5% = минимум Редкое)."
 
 -- Minimap
 L["MINIMAP_TOOLTIP_TITLE"] = "Epithet"
@@ -268,7 +273,7 @@ L["SPOT_ACHV_DESC_SMALL_WORLD"] = "Встретьте одно и то же зв
 L["SPOT_ACHV_NAME_CREATURE_OF_HABIT"] = "Раб привычки"
 L["SPOT_ACHV_DESC_CREATURE_OF_HABIT"] = "Впервые распознавайте хотя бы по одному званию 7 местных дней подряд."
 L["SPOT_ACHV_NAME_SEEING_STARS"] = "Искры из глаз"
-L["SPOT_ACHV_DESC_SEEING_STARS"] = "Раполнитель: найдите 5 званий легендарного качества."
+L["SPOT_ACHV_DESC_SEEING_STARS"] = "Распознайте 5 званий легендарного качества."
 L["SPOT_ACHV_NAME_MUSEUM_CURATOR"] = "Смотритель музея"
 L["SPOT_ACHV_DESC_MUSEUM_CURATOR"] = "Распознайте 5 званий из удаленного игрового контента."
 L["SPOT_ACHV_NAME_GNOME_SPOTTER"] = "Карманная перепись"
@@ -381,7 +386,7 @@ L["KIND_FEAT"] = "Великий подвиг"
 L["KIND_ITEM"] = "Предмет"
 L["KIND_PROMOTION"] = "Промоакция"
 
--- Filter facets (new)
+-- Filter facets
 L["CATEGORY"] = "Категория"
 L["KIND"] = "Тип источника"
 L["FACTION"] = "Фракция"
@@ -409,3 +414,121 @@ L["AVAILABILITY_PROMOTIONAL"] = "Промо"
 L["AVAILABILITY_TEMPORARY"] = "Временное"
 L["AVAILABILITY_REMOVED"] = "Удалено"
 L["AVAILABILITY_PERMANENT"] = "Постоянное"
+
+-- Previously-missing keys (had inline English fallbacks in code)
+L["SOCIAL_HIDE_IN_COMBAT"] = "Скрывать индикатор цели в бою"
+L["SOCIAL_HIDE_IN_GROUP"] = "Скрывать индикатор цели в группе"
+L["SOCIAL_LAYOUT_ANIMATED_PORTRAIT_TOGGLE"] = "Анимировать портрет цели"
+L["SPOTTING_META_TITLE"] = "Заметки распознавания"
+L["SPOTTING_META_DESC"] = "Выбирайте игроков в цель в открытом мире, чтобы записывать носимые ими звания."
+L["SPOT_ACHV_SECRET_EARNED_SUFFIX"] = "(секрет)"
+L["SPOT_ACHV_SECRET_EARNED_NOTE"] = "Вы раскрыли секретное достижение."
+
+-- Window banner (main frame title bar)
+L["BANNER_LEFT"] = "EPITHET"
+L["BANNER_RIGHT"] = "ВИТРИНА ЗВАНИЙ"
+
+-- Type tags (uppercase pills on title rows)
+L["TYPE_TAG_PREFIX"] = "ПРЕФИКС"
+L["TYPE_TAG_SUFFIX"] = "СУФФИКС"
+
+-- Rarity fallback
+L["RARITY_UNKNOWN"] = "НЕИЗВЕСТНО"
+
+-- Minimap tooltip collected line
+L["MINIMAP_TOOLTIP_COLLECTED"] = "Собрано: %d / %d"
+
+-- Slash command feedback
+L["SLASH_SCAN_COMPLETE"] = "Сканирование званий завершено: %d / %d"
+
+-- Version footer (two rows). %s placeholders filled at runtime.
+L["VERSION_LINE1_FMT"] = "Epithet v%s  " .. DOT .. "  Интерфейс %s"
+L["VERSION_LINE2_FMT"] = "TitlesDB v%s  " .. DOT .. "  Обновлено %s"
+L["VERSION_DATE_UNKNOWN"] = "неизвестно"
+
+-- Source-kind legend (bottom bar hover labels)
+L["LEGEND_ACHIEVEMENT"] = "Достижение"
+L["LEGEND_QUEST"] = "Задание"
+L["LEGEND_REPUTATION"] = "Репутация"
+L["LEGEND_PVP"] = "PvP"
+L["LEGEND_FEAT"] = "Подвиг"
+L["LEGEND_EXPLORATION"] = "Исследование"
+L["LEGEND_RAID"] = "Рейд"
+
+-- Layout preview sample data
+L["SAMPLE_TITLE"] = "Гроза мусора"
+L["SAMPLE_RARITY"] = "ЛЕГЕНДАРНОЕ"
+L["SAMPLE_FUNNY_TITLE"] = "Истребитель глупых, беспомощных и разочаровывающих приспешников"
+
+-- Fade slider bound labels
+L["FADE_SLIDER_LOW"] = "0.5с"
+L["FADE_SLIDER_HIGH"] = "20с"
+
+-- Month names (genitive case for "dd Month yyyy" date formatting)
+L["MONTH_1"]  = "января"
+L["MONTH_2"]  = "февраля"
+L["MONTH_3"]  = "марта"
+L["MONTH_4"]  = "апреля"
+L["MONTH_5"]  = "мая"
+L["MONTH_6"]  = "июня"
+L["MONTH_7"]  = "июля"
+L["MONTH_8"]  = "августа"
+L["MONTH_9"]  = "сентября"
+L["MONTH_10"] = "октября"
+L["MONTH_11"] = "ноября"
+L["MONTH_12"] = "декабря"
+
+-- Expansion names (filter sidebar, detail panel, list rows).
+L["EXPANSION_CLASSIC"] = "Классика"
+L["EXPANSION_TBC"] = "Пылающий Крестовый поход"
+L["EXPANSION_WRATH"] = "Гнев Короля-лича"
+L["EXPANSION_CATA"] = "Катаклизм"
+L["EXPANSION_MOP"] = "Туманы Пандарии"
+L["EXPANSION_WOD"] = "Владыки Дренора"
+L["EXPANSION_LEGION"] = "Легион"
+L["EXPANSION_BFA"] = "Битва за Азерот"
+-- Blizzard changed their localisation strategy for shadowflight and beyond, so we have to use the English names for those expansions.
+L["EXPANSION_SL"] = "Shadowlands"
+L["EXPANSION_DF"] = "Dragonflight"
+L["EXPANSION_TWW"] = "The War Within"
+L["EXPANSION_MID"] = "Midnight"
+
+-- Category names (filter sidebar, detail panel, list rows, group headers).
+L["CAT_PVP"] = "PvP"
+L["CAT_RAID"] = "Рейд"
+L["CAT_REPUTATION"] = "Репутация"
+L["CAT_QUEST"] = "Задание"
+L["CAT_PROFESSION"] = "Профессия"
+L["CAT_HOLIDAY"] = "Праздник"
+L["CAT_EXPLORATION"] = "Исследование"
+L["CAT_ACHIEVEMENT"] = "Достижение"
+L["CAT_CAMPAIGN"] = "Кампания"
+L["CATEGORY_UNCATEGORIZED"] = "Без категории"
+
+-- Detail panel meta-grid row labels
+L["EARNED_LABEL"] = "Получено"
+L["STATUS_LABEL"] = "Статус"
+
+-- "ACTIVE" chip on the currently-equipped title's list row
+L["ACTIVE_TITLE"] = "АКТИВНО"
+
+-- About / info modal ("Grimmsforge" and "World of Warcraft" stay as-is: brands)
+L["ABOUT_CRAFTED"] = "Epithet создан студией Grimmsforge."
+L["ABOUT_TAGLINE"] = "Инструменты и аддоны с открытым исходным кодом для World of Warcraft."
+
+-- Title-bar settings button
+L["SETTINGS_BUTTON_TOOLTIP"] = "Открыть настройки Epithet"
+L["INFO_BUTTON_TOOLTIP"] = "О Epithet"
+
+-- Language names (shown in the picker, in the active language)
+L["LANGUAGE_ENGLISH"] = "Английский"
+L["LANGUAGE_RUSSIAN"] = "Русский"
+
+-- Options: language section
+L["OPTIONS_LANGUAGE_SECTION"] = "Язык"
+L["OPTIONS_LANGUAGE_LABEL"] = "Язык аддона"
+L["OPTIONS_LANGUAGE_AUTO"] = "Автоматически (язык клиента)"
+L["OPTIONS_LANGUAGE_NOTE"] = "Задает язык, используемый Epithet, независимо от языка игрового клиента. При изменении интерфейс перезагружается."
+L["OPTIONS_LANGUAGE_RELOAD_PROMPT"] = "Сменить язык Epithet и перезагрузить интерфейс сейчас?"
+L["RELOAD_NOW"] = "Перезагрузить"
+L["LATER"] = "Позже"

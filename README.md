@@ -63,9 +63,11 @@ Epithet/
 │       ├── v1_2_0.lua       # Content for a single version's popup
 │       └── v1_2_0/          # That version's own dedicated art (banners, screenshots)
 ├── data/
-│   ├── TitlesDB.lua         # Bundled static title database
+│   ├── TitlesDB.enGB.lua    # Bundled static title database (enGB base / canonical)
+│   ├── TitlesDB.ruRU.lua.example  # Template for a localised prose overlay
 │   └── schema.json          # Data schema
 ├── Locales/
+│   ├── LocaleManager.lua    # Locale registry, ns.L proxy, resolution API
 │   └── enGB.lua             # Default locale strings
 ├── libs/                    # Embedded Ace3 + LibDataBroker/LibDBIcon (see below)
 ├── icons/

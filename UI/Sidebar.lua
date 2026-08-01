@@ -196,7 +196,9 @@ function Sidebar:Init(sidebar)
     }
     local catAnchor = catHeading
     for i, key in ipairs(catDefs) do
-        local box = self:CreateFilterCheckbox(child, key, "cat", key,
+        -- `key` is the raw DB code used for filtering; the checkbox label is
+        -- the localised display name (may differ once translated).
+        local box = self:CreateFilterCheckbox(child, ns.CategoryLabel(key), "cat", key,
             catAnchor, i == 1 and 4 or 0, nil, true)
         catAnchor = box.box
     end
@@ -211,7 +213,9 @@ function Sidebar:Init(sidebar)
     }
     local kindAnchor = kindHeading
     for i, key in ipairs(kindDefs) do
-        local box = self:CreateFilterCheckbox(child, key, "kind", key,
+        -- `key` is the raw DB code used for filtering; the checkbox label is
+        -- the localised display name (may differ once translated).
+        local box = self:CreateFilterCheckbox(child, ns.KindLabel(key), "kind", key,
             kindAnchor, i == 1 and 4 or 0, nil, true)
         kindAnchor = box.box
     end

@@ -77,8 +77,10 @@ function Detail:Init(panel)
     if self.panel then return end
     self.panel = panel
 
-    -- Preview banner
-    local banner = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    -- Preview banner. Themed font: PREVIEW_HOVERING carries an em-dash (U+2014)
+    -- separator that some locale game fonts lack.
+    local banner = (T and T.Sans and T.Sans(panel, 12, GOLD_DIM))
+        or panel:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     banner:SetPoint("TOPLEFT", INSET, -16)
     banner:SetTextColor(GOLD_DIM.r, GOLD_DIM.g, GOLD_DIM.b)
     self.previewBanner = banner
@@ -91,8 +93,12 @@ function Detail:Init(panel)
     title:SetTextColor(GOLD.r, GOLD.g, GOLD.b)
     self.titleText = title
 
-    -- Sub-line (type · expansion · rarity)
-    local subLine = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    -- Sub-line (type · expansion · rarity). Use the themed font (T.Sans) rather
+    -- than a Blizzard game font: the separator is a middle dot (U+00B7), which
+    -- some locale game-font builds don't carry, so it renders as a box under a
+    -- non-Latin locale. The bundled font used for those locales does carry it.
+    local subLine = (T and T.Sans and T.Sans(panel, 12, MUTED))
+        or panel:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     subLine:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -4)
     subLine:SetPoint("RIGHT", panel, "RIGHT", -INSET, 0)
     subLine:SetJustifyH("LEFT")
@@ -217,7 +223,10 @@ function Detail:InitRarityInfoButton(card)
     modal:Hide()
     self.rarityModal = modal
 
-    local noteText = modal:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    -- Themed font: RARITY_NOTE can contain an em-dash (U+2014) separator that
+    -- some locale game fonts lack; the bundled font used for those locales has it.
+    local noteText = (T and T.Sans and T.Sans(modal, 11, MUTED))
+        or modal:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
     noteText:SetPoint("TOPLEFT", 10, -10)
     noteText:SetPoint("BOTTOMRIGHT", -10, 10)
     noteText:SetJustifyH("LEFT")
@@ -329,7 +338,12 @@ function Detail:InitSourceCard()
     obtainReason:Hide()
     self.obtainReason = obtainReason
 
-    local meta = card:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    -- Themed font (not a Blizzard game font): the availability line can include
+    -- a middle-dot (U+00B7) separator that some locale game fonts lack. Per-line
+    -- colour is applied via |cff codes in the text, so the base colour here is
+    -- just a fallback.
+    local meta = (T and T.Sans and T.Sans(card, 11, MUTED))
+        or card:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
     meta:SetPoint("BOTTOMLEFT", card, "BOTTOMLEFT", 12, 12)
     meta:SetPoint("RIGHT", card, "RIGHT", -12, 0)
     meta:SetJustifyH("LEFT")
@@ -561,7 +575,7 @@ end
 function Detail:RefreshRarityCard(record)
     local q = record.q or 0
     local tq = T and T.quality[q]
-    self.qualityLabel:SetText(q > 0 and (tq and tq.label or ns.QUALITY_NAMES[q]) or "Unranked")
+    self.qualityLabel:SetText(q > 0 and ns.QUALITY_NAMES[q] or L["UNRANKED"])
     if q > 0 then
         local c = tq and tq.text or ns.QUALITY_COLOURS[q].text
         self.qualityLabel:SetTextColor(c.r, c.g, c.b)
@@ -597,7 +611,7 @@ function Detail:RefreshRarityCard(record)
         self.rarityPct:SetText("")
     end
 
-    self.rarityModalText:SetText((ns.EpithetData and ns.EpithetData.rarityNote) or L["RARITY_NOTE"])
+    self.rarityModalText:SetText(L["RARITY_NOTE"])
 
     -- Faction icon
     local faction = record.faction
@@ -615,23 +629,26 @@ function Detail:RefreshRarityCard(record)
 end
 
 function Detail:RefreshSourceCard(record)
-    local kind = record.kind or L["KIND_ACHIEVEMENT"]
-    local cat  = record.cat or kind
+    -- Raw DB codes (English) — used ONLY for keying the icon/sigil lookup
+    -- tables below. Never display these directly; see kindLabel a few lines
+    -- down for the localised text shown to the player.
+    local rawKind = record.kind or "Achievement"
+    local rawCat  = record.cat or rawKind
 
     -- Prefer category icon; fall back to letter sigil
-    local iconPath = SIGIL_ICONS[cat] or SIGIL_ICONS[kind]
+    local iconPath = SIGIL_ICONS[rawCat] or SIGIL_ICONS[rawKind]
     if iconPath then
         self.sigilIcon:SetTexture(iconPath)
         self.sigilIcon:Show()
         self.sigil:SetText("")
     else
         self.sigilIcon:Hide()
-        self.sigil:SetText(SIGIL_LETTERS[kind] or "?")
+        self.sigil:SetText(SIGIL_LETTERS[rawKind] or "?")
     end
-    self.kindLabel:SetText(kind)
+    self.kindLabel:SetText(ns.KindLabel(rawKind))
 
-    -- Source link text: prefer structured source fields
-    local sourceName = record.link or ""
+    -- Source link text: prefer structured source fields, else the title itself
+    local sourceName = record.text or ""
     if record.achievement and record.achievement ~= "" then
         sourceName = record.achievement
     elseif record.quest and record.quest ~= "" then
@@ -693,45 +710,48 @@ function Detail:RefreshSourceCard(record)
 
     if record.exp then
         local expLabel = ns.EXPANSION_LABELS[record.exp] or record.exp
-        lines[#lines + 1] = FAINT .. "Expansion|r       " .. TEXT .. expLabel .. "|r"
+        lines[#lines + 1] = FAINT .. L["EXPANSION_LABEL"] .. "|r " .. TEXT .. expLabel .. "|r"
     end
     if record.cat then
         lines[#lines + 1] = ""
-        lines[#lines + 1] = FAINT .. "Category|r        " .. TEXT .. record.cat .. "|r"
+        lines[#lines + 1] = FAINT .. L["CATEGORY_LABEL"] .. "|r " .. TEXT .. ns.CategoryLabel(record.cat) .. "|r"
     end
     if record.obtainable == "no" then
         lines[#lines + 1] = ""
-        lines[#lines + 1] = FAINT .. "Availability|r     " .. WARN .. L["NO_LONGER_OBTAINABLE"] .. "|r"
+        lines[#lines + 1] = FAINT .. L["AVAILABILITY_LABEL"] .. "|r " .. WARN .. L["NO_LONGER_OBTAINABLE"] .. "|r"
     elseif record.obtainable == "feat" then
         lines[#lines + 1] = ""
-        lines[#lines + 1] = FAINT .. "Availability|r     " .. WARN .. L["FEAT_OF_STRENGTH"] .. "|r"
+        lines[#lines + 1] = FAINT .. L["AVAILABILITY_LABEL"] .. "|r " .. WARN .. L["FEAT_OF_STRENGTH"] .. "|r"
     elseif record.availability and record.availability ~= "permanent" then
         local avail = L["AVAILABILITY_" .. record.availability:upper()] or record.availability
         if record.availability_event then
             avail = avail .. " " .. DOT .. " " .. record.availability_event
         end
         lines[#lines + 1] = ""
-        lines[#lines + 1] = FAINT .. "Availability|r     " .. WARN .. avail .. "|r"
+        lines[#lines + 1] = FAINT .. L["AVAILABILITY_LABEL"] .. "|r " .. WARN .. avail .. "|r"
     else
         lines[#lines + 1] = ""
-        lines[#lines + 1] = FAINT .. "Availability|r     " .. TEXT .. "Account-wide|r"
+        lines[#lines + 1] = FAINT .. L["AVAILABILITY_LABEL"] .. "|r " .. TEXT .. L["ACCOUNT_WIDE"] .. "|r"
     end
     if record.faction then
+        local factionLabel = (record.faction == "Alliance") and L["FACTION_ALLIANCE"]
+            or (record.faction == "Horde") and L["FACTION_HORDE"]
+            or record.faction
         lines[#lines + 1] = ""
-        lines[#lines + 1] = FAINT .. "Faction|r            " .. TEXT .. record.faction .. "|r"
+        lines[#lines + 1] = FAINT .. L["FACTION"] .. "|r " .. TEXT .. factionLabel .. "|r"
     end
     if record.earned and record.date then
         local dateHex = T and ("|cff" .. T.quality[5].text.hex) or "|cffffa334"
         lines[#lines + 1] = ""
-        lines[#lines + 1] = FAINT .. "Earned|r             " .. dateHex .. string.format(L["EARNED_DATE"], record.date) .. "|r"
+        lines[#lines + 1] = FAINT .. L["EARNED_LABEL"] .. "|r " .. dateHex .. string.format(L["EARNED_DATE"], record.date) .. "|r"
     elseif not record.earned then
         local lockHex = T and ("|cff" .. T.col.locked.hex) or "|cff5d5443"
         lines[#lines + 1] = ""
-        lines[#lines + 1] = FAINT .. "Status|r              " .. lockHex .. L["NOT_YET_EARNED"] .. "|r"
+        lines[#lines + 1] = FAINT .. L["STATUS_LABEL"] .. "|r " .. lockHex .. L["NOT_YET_EARNED"] .. "|r"
     end
     if record.last_updated then
         lines[#lines + 1] = ""
-        lines[#lines + 1] = FAINT .. "Last assessed|r   " .. TEXT .. record.last_updated .. "|r"
+        lines[#lines + 1] = FAINT .. L["LAST_ASSESSED"] .. "|r " .. TEXT .. record.last_updated .. "|r"
     end
 
     self.metaText:SetText(table.concat(lines, "\n"))

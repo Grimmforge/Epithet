@@ -16,7 +16,7 @@ local gsub = string.gsub
 local match = string.match
 local tostring = tostring
 
--- The dialog used to be rendered by handing a hand-built HTML string to a
+-- The dialogue used to be rendered by handing a hand-built HTML string to a
 -- SimpleHTML widget, but that widget only parses markup if the whole document
 -- is "well-formed" by its own undocumented rules - anything it doesn't like
 -- (a bare quote character was one culprit) makes it silently fall back to
@@ -85,7 +85,7 @@ local function BuildBlocks(body)
 end
 
 -- Layout constants: content width matches the scroll frame's inner width
--- (760 dialog - 18 left inset - 38 right inset - scrollbar allowance), and
+-- (760 dialogue - 18 left inset - 38 right inset - scrollbar allowance), and
 -- each block type carries its own font/colour plus the gap it always gets
 -- above it, so headings and images are guaranteed breathing room regardless
 -- of how the source markdown is formatted.
@@ -198,6 +198,18 @@ function WhatsNew:GetContentForVersion(version)
         return nil
     end
     return container[version]
+end
+
+-- A What's New field (title/body) may be either a plain string (single language)
+-- or a table keyed by locale, e.g. { enUS = [[...]], ruRU = [[...]] }. Resolve to
+-- the active locale, falling back to English so a version that hasn't been
+-- translated yet still renders rather than showing blank.
+function WhatsNew:LocalizeField(value)
+    if type(value) == "table" then
+        local locale = (GetLocale and GetLocale()) or "enUS"
+        return value[locale] or value.enUS or value.enGB or value.default or ""
+    end
+    return value
 end
 
 function WhatsNew:EnsureState()
@@ -410,10 +422,10 @@ function WhatsNew:Show(version)
         return
     end
 
-    local title = content.title or ((L and L["WHATS_NEW_HEADING"]) or "What's New")
+    local title = self:LocalizeField(content.title) or ((L and L["WHATS_NEW_HEADING"]) or "What's New")
     self.dialogHeading:SetText(title)
 
-    local totalHeight = self:RenderBody(content.body or "")
+    local totalHeight = self:RenderBody(self:LocalizeField(content.body) or "")
     self.dialogContent:SetHeight(math.max(1, totalHeight + 16))
     self.dialogScroll:SetVerticalScroll(0)
 

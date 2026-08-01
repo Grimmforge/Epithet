@@ -66,12 +66,35 @@ function MainFrame:Init()
 
     -- Set custom title bar text
     if frame.TitleBar and frame.TitleBar.Title then
-        frame.TitleBar.Title:SetText("|cffe8c767EPITHET|r |cffb0a284THE TITLE SHOWCASE|r")
+        frame.TitleBar.Title:SetText("|cffe8c767" .. L["BANNER_LEFT"] .. "|r |cffb0a284" .. L["BANNER_RIGHT"] .. "|r")
     end
 
     -- Wire info button click
     if frame.TitleBar and frame.TitleBar.InfoButton then
-        frame.TitleBar.InfoButton:SetScript("OnClick", function() MainFrame:ShowAbout() end)
+        local infoBtn = frame.TitleBar.InfoButton
+        infoBtn:SetScript("OnClick", function() MainFrame:ShowAbout() end)
+        infoBtn:HookScript("OnEnter", function(btn)
+            GameTooltip:SetOwner(btn, "ANCHOR_BOTTOM")
+            GameTooltip:AddLine(L["INFO_BUTTON_TOOLTIP"])
+            GameTooltip:Show()
+        end)
+        infoBtn:HookScript("OnLeave", function() GameTooltip:Hide() end)
+    end
+
+    -- Wire settings button: opens the Blizzard options UI on Epithet's panel
+    if frame.TitleBar and frame.TitleBar.SettingsButton then
+        local settingsBtn = frame.TitleBar.SettingsButton
+        settingsBtn:SetScript("OnClick", function()
+            if ns.Settings and ns.Settings.OpenSpottingSettings then
+                ns.Settings:OpenSpottingSettings()
+            end
+        end)
+        settingsBtn:HookScript("OnEnter", function(btn)
+            GameTooltip:SetOwner(btn, "ANCHOR_BOTTOM")
+            GameTooltip:AddLine(L["SETTINGS_BUTTON_TOOLTIP"])
+            GameTooltip:Show()
+        end)
+        settingsBtn:HookScript("OnLeave", function() GameTooltip:Hide() end)
     end
 
     -- Add to special frames for ESC-close
@@ -319,13 +342,40 @@ function MainFrame:InitBottomBar()
     local bar = frame.BottomBar
     if not bar then return end
 
+    -- Bottom-bar layout: left legend can wrap to two rows, right metadata stays
+    -- vertically centred with a separator to preserve visual hierarchy.
+    if not bar.RightMetaBlock then
+        bar.RightMetaBlock = CreateFrame("Frame", nil, bar)
+        bar.RightMetaBlock:SetSize(300, 30)
+        bar.RightMetaBlock:SetPoint("RIGHT", bar, "RIGHT", -12, 0)
+    end
+
+    if not bar.MetaSeparator then
+        bar.MetaSeparator = bar:CreateTexture(nil, "ARTWORK")
+    end
+    bar.MetaSeparator:SetColorTexture(0.72, 0.60, 0.36, 0.30)
+    bar.MetaSeparator:SetWidth(1)
+    bar.MetaSeparator:SetPoint("TOP", bar.RightMetaBlock, "TOPLEFT", -12, 0)
+    bar.MetaSeparator:SetPoint("BOTTOM", bar.RightMetaBlock, "BOTTOMLEFT", -12, 0)
+
+    if not bar.LeftLegendBlock then
+        bar.LeftLegendBlock = CreateFrame("Frame", nil, bar)
+        bar.LeftLegendBlock:SetHeight(38)
+    end
+    bar.LeftLegendBlock:ClearAllPoints()
+    bar.LeftLegendBlock:SetPoint("LEFT", bar, "LEFT", 12, 0)
+    bar.LeftLegendBlock:SetPoint("RIGHT", bar.MetaSeparator, "LEFT", -12, 0)
+    bar.LeftLegendBlock:SetPoint("CENTER", bar, "CENTER", 0, 0)
+
     bar.RarityLabel:SetText(L["RARITY"])
+    bar.RarityLabel:ClearAllPoints()
+    bar.RarityLabel:SetPoint("LEFT", bar.LeftLegendBlock, "LEFT", 0, 0)
     if T then
         bar.RarityLabel:SetTextColor(T.col.gold.r, T.col.gold.g, T.col.gold.b)
     end
 
     -- Create rarity legend pips + labels (round dots, labels on OVERLAY so a
-    -- pip never draws over a label; vertically centered to the bar).
+    -- pip never draws over a label; vertically centred to the bar).
     local prevAnchor = bar.RarityLabel
     local qualityData = T and T.quality or nil
 
@@ -333,19 +383,21 @@ function MainFrame:InitBottomBar()
         local q = qualityData and qualityData[i]
         local pipCol = q and q.pip or ns.QUALITY_COLOURS[i].pip
         local txtCol = q and q.text or ns.QUALITY_COLOURS[i].text
-        local name   = q and q.label or ns.QUALITY_NAMES[i]
+        local name   = ns.QUALITY_NAMES[i]   -- localised (theme label is colour-only now)
 
         -- Gem (rarity icon, tinted)
         local pip = bar:CreateTexture(nil, "ARTWORK")
         pip:SetTexture(RARITY_GEMS[i])
         pip:SetVertexColor(pipCol.r, pipCol.g, pipCol.b, 1.0)
         pip:SetSize(9, 9)
+        pip:ClearAllPoints()
         pip:SetPoint("LEFT", prevAnchor, "RIGHT", i == 1 and 12 or 11, 0)
 
         -- Label
         local label = bar:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
         label:SetText(name)
         label:SetTextColor(txtCol.r, txtCol.g, txtCol.b)
+        label:ClearAllPoints()
         label:SetPoint("LEFT", pip, "RIGHT", 7, 0)
 
         prevAnchor = label
@@ -361,7 +413,7 @@ function MainFrame:InitBottomBar()
         local y, m, d = rawDate:match("^(%d+)-(%d+)-(%d+)$")
         dbDate = format("%s/%s/%s", d, m, y)
     else
-        dbDate = rawDate or "unknown"
+        dbDate = rawDate or L["VERSION_DATE_UNKNOWN"]
     end
     local gameInterface = select(4, GetBuildInfo()) or "?"
     -- Format as X.X.X from the integer (e.g. 120001 -> 12.0.1)
@@ -372,29 +424,46 @@ function MainFrame:InitBottomBar()
         gameInterface = format("%d.%d.%d", major, minor, patch)
     end
 
-    -- Row 1: Epithet version (left) | TitlesDB version (right)
-    bar.Version:SetText("Epithet v" .. addonVersion .. "  \194\183  TitlesDB v" .. dbVersion)
-    -- Row 2: Game target (left) | TitlesDB date (right)
-    bar.Version2:SetText("Interface " .. gameInterface .. "  \194\183  Updated " .. dbDate)
+    -- These lines carry a middle-dot (U+00B7) separator via VERSION_LINE*_FMT.
+    -- The XML FontStrings inherit a Blizzard game font, whose locale build may
+    -- lack that glyph (renders as a box). On locales that need the bundled font,
+    -- swap in the bundled font object (no-op / nil on Latin locales, so English
+    -- keeps its Blizzard font unchanged).
+    local versionFont = T and T.LocaleFontObject and T.LocaleFontObject(10)
+    if versionFont then
+        bar.Version:SetFontObject(versionFont)
+        bar.Version2:SetFontObject(versionFont)
+    end
+
+    -- Row 1: Epithet version (left) | Interface version (right)
+    bar.Version:SetText(string.format(L["VERSION_LINE1_FMT"], addonVersion, gameInterface))
+    -- Row 2: TitlesDB version (left) | TitlesDB date (right)
+    bar.Version2:SetText(string.format(L["VERSION_LINE2_FMT"], dbVersion, dbDate))
     if T then
         bar.Version:SetTextColor(T.col.faint.r, T.col.faint.g, T.col.faint.b)
         bar.Version2:SetTextColor(T.col.faint.r, T.col.faint.g, T.col.faint.b)
     end
 
+    bar.Version:ClearAllPoints()
+    bar.Version:SetPoint("TOPRIGHT", bar.RightMetaBlock, "RIGHT", 0, -1)
+    bar.Version2:ClearAllPoints()
+    bar.Version2:SetPoint("BOTTOMRIGHT", bar.RightMetaBlock, "RIGHT", 0, 1)
+
     -- Source kind icon legend (right of rarity pips)
     local SOURCE_LEGEND = {
-        { icon = "Interface\\AddOns\\Epithet\\icons\\category\\epithet-cat-achievement-16", label = "Achievement" },
-        { icon = "Interface\\AddOns\\Epithet\\icons\\category\\epithet-cat-quest-16",       label = "Quest" },
-        { icon = "Interface\\AddOns\\Epithet\\icons\\category\\epithet-cat-reputation-16",  label = "Reputation" },
-        { icon = "Interface\\AddOns\\Epithet\\icons\\category\\epithet-cat-pvp-16",         label = "PvP" },
-        { icon = "Interface\\AddOns\\Epithet\\icons\\category\\epithet-cat-feat-16",        label = "Feat" },
-        { icon = "Interface\\AddOns\\Epithet\\icons\\category\\epithet-cat-exploration-16", label = "Exploration" },
-        { icon = "Interface\\AddOns\\Epithet\\icons\\category\\epithet-cat-raid-16",        label = "Raid" },
+        { icon = "Interface\\AddOns\\Epithet\\icons\\category\\epithet-cat-achievement-16", label = L["LEGEND_ACHIEVEMENT"] },
+        { icon = "Interface\\AddOns\\Epithet\\icons\\category\\epithet-cat-quest-16",       label = L["LEGEND_QUEST"] },
+        { icon = "Interface\\AddOns\\Epithet\\icons\\category\\epithet-cat-reputation-16",  label = L["LEGEND_REPUTATION"] },
+        { icon = "Interface\\AddOns\\Epithet\\icons\\category\\epithet-cat-pvp-16",         label = L["LEGEND_PVP"] },
+        { icon = "Interface\\AddOns\\Epithet\\icons\\category\\epithet-cat-feat-16",        label = L["LEGEND_FEAT"] },
+        { icon = "Interface\\AddOns\\Epithet\\icons\\category\\epithet-cat-exploration-16", label = L["LEGEND_EXPLORATION"] },
+        { icon = "Interface\\AddOns\\Epithet\\icons\\category\\epithet-cat-raid-16",        label = L["LEGEND_RAID"] },
     }
 
     local sourceLabel = bar:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     sourceLabel:SetText(L["SOURCE_LEGEND"] or "SOURCE")
-    sourceLabel:SetPoint("LEFT", prevAnchor, "RIGHT", 24, 0)
+    sourceLabel:ClearAllPoints()
+    sourceLabel:SetPoint("LEFT", bar.LeftLegendBlock, "LEFT", 0, 0)
     if T then
         sourceLabel:SetTextColor(T.col.gold.r, T.col.gold.g, T.col.gold.b)
     end
@@ -446,7 +515,7 @@ function MainFrame:InitBottomBar()
 
     for i, def in ipairs(SOURCE_LEGEND) do
         -- Wrap icon + label in an invisible button for mouse events
-        local btn = CreateFrame("Button", nil, bar)
+        local btn = CreateFrame("Button", nil, bar.LeftLegendBlock)
         btn:SetHeight(12)
         btn:SetPoint("LEFT", srcPrev, "RIGHT", i == 1 and 12 or 10, 0)
 
@@ -490,6 +559,47 @@ function MainFrame:InitBottomBar()
         end)
 
         srcPrev = btn
+    end
+
+    local function LegendWidthFromAnchor(firstRegion, lastRegion)
+        if not firstRegion or not lastRegion then return 0 end
+        local left = firstRegion:GetLeft()
+        local right = lastRegion:GetRight()
+        if not left or not right then return 0 end
+        return right - left
+    end
+
+    local function LayoutBottomBarLegend()
+        local available = bar.LeftLegendBlock:GetWidth() or 0
+        local rarityWidth = LegendWidthFromAnchor(bar.RarityLabel, prevAnchor)
+        local sourceWidth = LegendWidthFromAnchor(sourceLabel, srcPrev)
+        local gap = 24
+        local fitsOneLine = (available > 0) and ((rarityWidth + gap + sourceWidth) <= available)
+
+        if fitsOneLine then
+            bar.RarityLabel:ClearAllPoints()
+            bar.RarityLabel:SetPoint("LEFT", bar.LeftLegendBlock, "LEFT", 0, 0)
+            sourceLabel:ClearAllPoints()
+            sourceLabel:SetPoint("LEFT", prevAnchor, "RIGHT", gap, 0)
+        else
+            bar.RarityLabel:ClearAllPoints()
+            bar.RarityLabel:SetPoint("LEFT", bar.LeftLegendBlock, "LEFT", 0, 8)
+            sourceLabel:ClearAllPoints()
+            sourceLabel:SetPoint("LEFT", bar.LeftLegendBlock, "LEFT", 0, -8)
+        end
+
+        local rightWidth = math.max(
+            bar.Version:GetStringWidth() or 0,
+            bar.Version2:GetStringWidth() or 0,
+            200
+        )
+        bar.RightMetaBlock:SetWidth(rightWidth)
+    end
+
+    LayoutBottomBarLegend()
+    if not bar._epithetBottomBarSizeHooked then
+        bar:HookScript("OnSizeChanged", LayoutBottomBarLegend)
+        bar._epithetBottomBarSizeHooked = true
     end
 end
 
@@ -735,8 +845,8 @@ function MainFrame:ShowAbout()
     desc:SetSpacing(3)
     desc:SetTextColor(0.78, 0.74, 0.66)
     desc:SetText(
-        "Epithet is crafted by Grimmsforge.\n\n" ..
-        "Open-source tools and addons for World of Warcraft.\n\n" ..
+        L["ABOUT_CRAFTED"] .. "\n\n" ..
+        L["ABOUT_TAGLINE"] .. "\n\n" ..
         "|cffe8c767github.com/Grimmsforge|r"
     )
 
@@ -764,7 +874,7 @@ function MainFrame:ShowAbout()
 
     local closeText = closeBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     closeText:SetPoint("CENTER")
-    closeText:SetText("Close")
+    closeText:SetText(L["CLOSE"])
     closeText:SetTextColor(goldCol.r, goldCol.g, goldCol.b)
 
     closeBtn:SetScript("OnClick", function() MainFrame:HideAbout() end)
