@@ -150,3 +150,12 @@ See [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) for the full version history,
 ## Licence
 
 Apache-2.0 license - see [LICENSE](LICENSE).
+
+## Contributors
+
+It's great to see people enjoying Epithet as an add-on to the extent that they get involved in improving the tool, below are some of Epithets contributors
+
+### Locale Contributors
+
+- [Hubbotu](https://github.com/Hubbotu) - Contributing the the ruRU locale/lang files.
+
