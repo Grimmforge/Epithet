@@ -1,0 +1,64 @@
+name: Locale/Translation Issue
+description: Report incorrect, missing, or outdated translated text in Epithet
+title: "[Locale] <short summary>"
+labels:
+  - translation
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a locale/translation issue. Please include enough detail so we can find and fix the exact text.
+
+  - type: input
+    id: locale
+    attributes:
+      label: Locale / language
+      description: Which locale has the issue?
+      placeholder: e.g., fr-FR, de-DE, pt-BR
+    validations:
+      required: true
+
+  - type: input
+    id: location
+    attributes:
+      label: Where the text appears
+      description: Screen, page, tooltip, or workflow where this text appears.
+      placeholder: e.g., Profile > Titles tab > Hover tooltip for "example title"
+    validations:
+      required: true
+
+  - type: textarea
+    id: current-text
+    attributes:
+      label: Current translated text
+      description: Paste the text exactly as it currently appears.
+      placeholder: Include punctuation/capitalization exactly as shown.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-text
+    attributes:
+      label: Expected translation / proposed correction
+      description: What should the text be instead?
+      placeholder: Provide the correct translation and any context.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context / notes
+      description: Why is this incorrect? Include grammar, terminology, or consistency notes.
+      placeholder: Add any context that helps reviewers validate the change.
+    validations:
+      required: false
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Screenshots or references
+      description: Add screenshots, links, or supporting references.
+      placeholder: Drag and drop images or paste links.
+    validations:
+      required: false

@@ -481,16 +481,16 @@ L["MONTH_10"] = "октября"
 L["MONTH_11"] = "ноября"
 L["MONTH_12"] = "декабря"
 
--- Expansion names (filter sidebar, detail panel, list rows).
-L["EXPANSION_CLASSIC"] = "Классика"
-L["EXPANSION_TBC"] = "Пылающий Крестовый поход"
-L["EXPANSION_WRATH"] = "Гнев Короля-лича"
-L["EXPANSION_CATA"] = "Катаклизм"
-L["EXPANSION_MOP"] = "Туманы Пандарии"
-L["EXPANSION_WOD"] = "Владыки Дренора"
-L["EXPANSION_LEGION"] = "Легион"
-L["EXPANSION_BFA"] = "Битва за Азерот"
--- Blizzard changed their localisation strategy for shadowflight and beyond, so we have to use the English names for those expansions.
+-- Expansion names (filter sidebar, detail panel, list rows). Keyed to match
+-- the DB's stable expansion codes uppercased, e.g. "tbc" -> EXPANSION_TBC.
+L["EXPANSION_CLASSIC"] = "Classic"
+L["EXPANSION_TBC"] = "The Burning Crusade"
+L["EXPANSION_WRATH"] = "Wrath of the Lich King"
+L["EXPANSION_CATA"] = "Cataclysm"
+L["EXPANSION_MOP"] = "Mists of Pandaria"
+L["EXPANSION_WOD"] = "Warlords of Draenor"
+L["EXPANSION_LEGION"] = "Legion"
+L["EXPANSION_BFA"] = "Battle for Azeroth"
 L["EXPANSION_SL"] = "Shadowlands"
 L["EXPANSION_DF"] = "Dragonflight"
 L["EXPANSION_TWW"] = "The War Within"
