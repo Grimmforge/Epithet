@@ -8,7 +8,7 @@ It looks and feels (hopefully) like a quiet hall of heraldry, built for prestige
 
 <img width="2000" height="400" alt="CF_project_banner_winner-2000x400-CF-WoW_Contest-26" src="https://github.com/user-attachments/assets/a12473a1-247c-440a-a34f-04be0c94bd67" />
 
-_*Banner provided by Cpt. Jonah at CurseForge for Epithet placing in the top 10 Finalists of the 2026 WoW AddOn Competition_
+_*Banner provided by Cpt. Jonah at CurseForge for Epithet placing in the top 10 Finalists of the 2026 WoW Midnight Add-on Competition_
 
 ## Features
 
