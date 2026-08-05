@@ -27,10 +27,7 @@ Locales\frFR.lua
 # enGB is the canonical base; localised overlays load AFTER it and fall back to
 # it for any field they don't translate (see docs/LOCALIZATION.md).
 data\TitlesDB.enGB.lua
-# data\TitlesDB.ruRU.lua is NOT a sparse overlay despite its name: it assigns
-# EpithetData.titles wholesale with English-keyed data, so loading it here would
-# replace the canonical base rather than translate it. Left out until the
-# collector regenerates it as a titleID-keyed ns.TitlesDBLocales.ruRU overlay.
+data\TitlesDB.ruRU.lua
 data\TitlesDB.frFR.lua
 WhatsNew\Content.lua
 WhatsNew\Versions\v1_2_0.lua

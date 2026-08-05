@@ -78,6 +78,13 @@ function Build-Variant {
 
     # Copy directories (names must match TOC paths exactly for case-sensitive OS)
     Copy-Item (Join-Path $root "Core") -Destination (Join-Path $addonDir "Core") -Recurse
+
+    # Developer-only modules must not ship. They are gitignored and commented out
+    # of the TOC for public builds, but Core/ is copied wholesale so they would
+    # otherwise still ride along inside the zip. Pattern-based so any future
+    # *.local.lua is covered without touching this again.
+    Get-ChildItem (Join-Path $addonDir "Core") -Filter "*.local.lua" -Recurse -File |
+        Remove-Item -Force
     Copy-Item (Join-Path $root "data") -Destination (Join-Path $addonDir "data") -Recurse
     # Fonts carries the bundled Unicode faces (PT Sans/Serif). Without them
     # Theme.lua's SetFont fails and falls back to the client font, so any locale
