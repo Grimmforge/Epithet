@@ -69,6 +69,7 @@ L["PREVIEW_HOVERING"] = "ПРЕДПРОСМОТР " .. DASH .. " В ПОЛЁТЕ
 L["PREFIX_TITLE"] = "Префиксное звание"
 L["SUFFIX_TITLE"] = "Суффиксное звание"
 L["HOW_TO_OBTAIN"] = "КАК ПОЛУЧИТЬ"
+L["DETAIL_MORE_ON_SELECT"] = "Выберите это звание, чтобы прочитать больше"
 L["HELD_BY_ESTIMATE"] = "Есть примерно у %s%% активных персонажей."
 L["EXPANSION_LABEL"] = "Дополнение"
 L["CATEGORY_LABEL"] = "Категория"

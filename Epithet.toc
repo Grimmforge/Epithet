@@ -32,7 +32,6 @@ data\TitlesDB.frFR.lua
 WhatsNew\Content.lua
 WhatsNew\Versions\v1_2_0.lua
 WhatsNew\Versions\v1_3_0.lua
-WhatsNew\Versions\v1_3_0.lua
 
 # Core
 Core\Theme.lua

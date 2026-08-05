@@ -73,6 +73,9 @@ L["PREVIEW_HOVERING"] = "PREVIEW " .. DASH .. " HOVERING"
 L["PREFIX_TITLE"] = "Prefix title"
 L["SUFFIX_TITLE"] = "Suffix title"
 L["HOW_TO_OBTAIN"] = "HOW TO OBTAIN"
+-- Shown under the source card during hover preview when its content is taller
+-- than the card, since the preview cannot be scrolled.
+L["DETAIL_MORE_ON_SELECT"] = "Select this title to read more"
 L["HELD_BY_ESTIMATE"] = "Held by an estimated %s%% of active characters."
 L["EXPANSION_LABEL"] = "Expansion"
 L["CATEGORY_LABEL"] = "Category"

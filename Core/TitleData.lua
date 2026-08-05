@@ -234,6 +234,30 @@ local function GetEarnedDate(sourceID)
     return nil
 end
 
+-- Build a stable dedupe key for live titles that are API-duplicates of the same
+-- underlying title (for example the legacy PvP rank aliases, where Grunt is
+-- exposed as both 16 and 169).
+--
+-- ONLY locale-independent, live-derived fields belong here. Both come from this
+-- client's own GetTitleName, so the duplicate IDs always agree on them whatever
+-- language the client runs in.
+--
+-- Bundled-DB fields (cat/kind/exp/q/faction/achievement_id/...) must NOT be used,
+-- however well they would discriminate. The DB stores one entry per title under
+-- the lowest duplicate ID, so an alias ID misses the titleID index and falls back
+-- to the English-text-keyed lookup, which resolves on an English client only. On
+-- any other locale the alias record carries all-nil metadata, its key stops
+-- matching the canonical one, and the duplicate row reappears — the exact failure
+-- the comment above that lookup warns about.
+--
+-- Text plus affix is enough to be safe: where one text spans two IDs of differing
+-- affix ("the Forbidden" is 495 suffix / 533 prefix) the type still separates
+-- them, and two titles sharing both text and affix are indistinguishable to the
+-- player anyway, which is precisely what collapsing them is for.
+local function BuildRecordDedupeKey(record)
+    return strlower(record.text or "") .. "|" .. (record.type or "")
+end
+
 -- ---------------------------------------------------------------------------
 -- Full scan: enumerate all titles, merge with bundled DB
 -- Gated by a dirty flag to avoid redundant work on repeated Show() calls.
@@ -244,6 +268,7 @@ function TitleData:Scan(force)
     local records = {}
     local recordsByID = {}
     local recordsByLowerText = {}
+    local recordsByDedupeKey = {}
     local earnedCount = 0
     local totalCount = 0
     local earnedObtainableCount = 0
@@ -262,7 +287,6 @@ function TitleData:Scan(force)
         if raw then
             local titleType, text = ClassifyTitle(raw)
             if text and text ~= "" and not IsPlaceholderTitle(text) then
-                totalCount = totalCount + 1
                 local earned = IsTitleKnown and IsTitleKnown(titleID) or false
                 local isActive = (titleID == currentTitleID)
 
@@ -313,6 +337,7 @@ function TitleData:Scan(force)
                     availability_event = static and static.availability_event or nil,
                     last_updated       = static and static.last_updated or nil,
                     date      = nil, -- populated below
+                    _titleIDs = { [titleID] = true },
                 }
 
                 -- Pre-compute lower-case search key for fast filtering
@@ -329,29 +354,67 @@ function TitleData:Scan(force)
                     record.date = GetEarnedDate(record.achievement_id)
                 end
 
-                if earned then
-                    earnedCount = earnedCount + 1
-                end
+                local dedupeKey = BuildRecordDedupeKey(record)
+                local deduped = recordsByDedupeKey[dedupeKey]
 
-                -- Track obtainable-only pool
-                local obt = record.obtainable
-                if obt ~= "no" and obt ~= "feat" then
-                    totalObtainableCount = totalObtainableCount + 1
-                    if earned then
-                        earnedObtainableCount = earnedObtainableCount + 1
+                if deduped then
+                    -- Keep every live titleID addressable while collapsing the
+                    -- duplicate row in the visible list.
+                    deduped._titleIDs[titleID] = true
+                    if isActive then
+                        deduped.isActive = true
                     end
-                end
+                    if earned then
+                        -- Promoting the canonical row from unearned to earned has
+                        -- to move the counters with it. They were decided when that
+                        -- row was created and are never revisited otherwise, so a
+                        -- title the client reports known only under its alias ID
+                        -- would display as earned while the header count omitted
+                        -- it. Guarded on the flag so a title known under several
+                        -- IDs is still only counted once.
+                        if not deduped.earned then
+                            deduped.earned = true
+                            earnedCount = earnedCount + 1
 
-                records[#records + 1] = record
-                recordsByID[titleID] = record
+                            local obt = deduped.obtainable
+                            if obt ~= "no" and obt ~= "feat" then
+                                earnedObtainableCount = earnedObtainableCount + 1
+                            end
+                        end
 
-                local lowerText = strlower(text)
-                local sameText = recordsByLowerText[lowerText]
-                if not sameText then
-                    sameText = {}
-                    recordsByLowerText[lowerText] = sameText
+                        if deduped.date == nil then
+                            deduped.date = record.date
+                        end
+                    end
+                    recordsByID[titleID] = deduped
+                else
+                    recordsByDedupeKey[dedupeKey] = record
+                    totalCount = totalCount + 1
+
+                    if earned then
+                        earnedCount = earnedCount + 1
+                    end
+
+                    -- Track obtainable-only pool (deduped records only)
+                    local obt = record.obtainable
+                    if obt ~= "no" and obt ~= "feat" then
+                        totalObtainableCount = totalObtainableCount + 1
+                        if earned then
+                            earnedObtainableCount = earnedObtainableCount + 1
+                        end
+                    end
+
+                    records[#records + 1] = record
+                    recordsByID[titleID] = record
+
+                    local lowerText = strlower(text)
+                    local sameText = recordsByLowerText[lowerText]
+                    if not sameText then
+                        sameText = {}
+                        recordsByLowerText[lowerText] = sameText
+                    end
+                    sameText[#sameText + 1] = record
                 end
-                sameText[#sameText + 1] = record
             end
         end
     end
@@ -379,7 +442,11 @@ function TitleData:RefreshActiveState()
     self.currentTitleID = currentTitleID
     if self.records then
         for _, record in ipairs(self.records) do
-            record.isActive = (record.titleID == currentTitleID)
+            if record._titleIDs then
+                record.isActive = record._titleIDs[currentTitleID] == true
+            else
+                record.isActive = (record.titleID == currentTitleID)
+            end
         end
     end
 end
