@@ -600,13 +600,12 @@ function Detail:RefreshRarityCard(record)
     end
 
     if record.rarity then
-        if T then
-            self.rarityPct:SetText(
-                "Held by an estimated " .. T.Wrap(T.col.goldBright.hex, tostring(record.rarity)) .. "% of active characters."
-            )
-        else
-            self.rarityPct:SetText(format(L["HELD_BY_ESTIMATE"], tostring(record.rarity)))
-        end
+        -- The %s carries the colour wrap, so the localised sentence keeps its own
+        -- word order. (This branch used to concatenate a hardcoded English string,
+        -- which left HELD_BY_ESTIMATE unreachable and this line untranslated.)
+        local pctText = T and T.Wrap(T.col.goldBright.hex, tostring(record.rarity))
+            or tostring(record.rarity)
+        self.rarityPct:SetText(format(L["HELD_BY_ESTIMATE"], pctText))
     else
         self.rarityPct:SetText("")
     end

@@ -58,6 +58,15 @@ function Sidebar:Init(sidebar)
     search:SetPoint("TOPRIGHT", -PAD_X, -14)
     if search.Instructions then
         search.Instructions:SetText(L["SEARCH_PLACEHOLDER"])
+        -- SearchBoxTemplate lets its placeholder wrap, so a longer localised
+        -- string (the French one) ran to a second line and spilled out of the
+        -- 22px box. Keep it on one line and let it truncate instead.
+        if search.Instructions.SetWordWrap then
+            search.Instructions:SetWordWrap(false)
+        end
+        if search.Instructions.SetMaxLines then
+            search.Instructions:SetMaxLines(1)
+        end
     end
     search:SetAutoFocus(false)
     search:SetScript("OnTextChanged", function(box, userInput)
@@ -85,13 +94,71 @@ function Sidebar:Init(sidebar)
         { value = "earned",   label = L["STATUS_EARNED"] },
         { value = "unearned", label = L["STATUS_UNEARNED"] },
     }
-    local segWidth = 64
+    local segButtons = {}
     for i, def in ipairs(segDefs) do
         local btn = self:CreateStatusSegment(statusRow, def.label, def.value)
-        btn:SetWidth(segWidth)
-        btn:SetPoint("LEFT", (i - 1) * (segWidth + 4), 0)
         self.statusButtons[def.value] = btn
+        segButtons[i] = btn
     end
+
+    -- Segment widths follow the localised labels instead of a fixed 64px. The
+    -- Russian strings ("Неполученные") are roughly twice their English
+    -- counterparts and overran their buttons into each other; widening the window
+    -- would not have helped, since the old width was a constant and never grew.
+    --
+    -- Natural width first, then a font step-down, then an even split with
+    -- truncation as the last resort — so the row always fits whatever language
+    -- and sidebar width it is handed.
+    local SEG_GAP, SEG_TEXT_PAD, SEG_MIN_WIDTH = 4, 12, 34
+    local SEG_FONT_MAX, SEG_FONT_MIN = 10, 8
+    local layingOut = false
+
+    local function LayoutStatusSegments()
+        if layingOut then return end
+        layingOut = true
+
+        local avail = statusRow:GetWidth()
+        if not avail or avail <= 0 then avail = 206 end
+        avail = avail - SEG_GAP * (#segButtons - 1)
+
+        local size, widths, total = SEG_FONT_MAX, {}, 0
+        while true do
+            widths, total = {}, 0
+            for i, btn in ipairs(segButtons) do
+                local fontPath, _, flags = btn.text:GetFont()
+                if fontPath then btn.text:SetFont(fontPath, size, flags) end
+                if btn.text.SetWordWrap then btn.text:SetWordWrap(false) end
+                btn.text:SetWidth(0) -- release any previous clamp before measuring
+                local w = math.max(SEG_MIN_WIDTH,
+                    math.ceil((btn.text:GetStringWidth() or 0) + SEG_TEXT_PAD))
+                widths[i] = w
+                total = total + w
+            end
+            if total <= avail or size <= SEG_FONT_MIN then break end
+            size = size - 1
+        end
+
+        if total > avail then
+            local even = math.floor(avail / #segButtons)
+            for i = 1, #widths do widths[i] = even end
+        end
+
+        local x = 0
+        for i, btn in ipairs(segButtons) do
+            local w = widths[i] or SEG_MIN_WIDTH
+            btn:SetWidth(w)
+            btn:ClearAllPoints()
+            btn:SetPoint("LEFT", x, 0)
+            btn.text:SetWidth(w - 4)
+            x = x + w + SEG_GAP
+        end
+
+        layingOut = false
+    end
+
+    LayoutStatusSegments()
+    statusRow:SetScript("OnSizeChanged", LayoutStatusSegments)
+    self.LayoutStatusSegments = LayoutStatusSegments
 
     -- ----- Favourites toggle -------------------------------------------------
     local favRow = CreateFrame("Frame", nil, sidebar)

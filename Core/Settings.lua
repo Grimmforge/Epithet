@@ -234,7 +234,12 @@ function Options:BuildLanguagePanel(parentCategory)
         end
     end)
 
-    panel:SetScript("OnShow", RefreshLanguageDropdown)
+    panel:SetScript("OnShow", function()
+        RefreshLanguageDropdown()
+        if T and T.ApplyLocaleFontToTree then
+            T.ApplyLocaleFontToTree(panel)
+        end
+    end)
     RefreshLanguageDropdown()
 
     if BlizzardSettings and BlizzardSettings.RegisterCanvasLayoutSubcategory and parentCategory then
@@ -1171,6 +1176,12 @@ function Options:Init()
             self.scrollFrame:SetVerticalScroll(0)
         end
         RefreshControls()
+        -- Blizzard builds canvas panels lazily and its own templates never route
+        -- through Theme.Sans/Serif, so sweep on every show rather than once at
+        -- build time. No-op unless the active locale needs the bundled face.
+        if T and T.ApplyLocaleFontToTree then
+            T.ApplyLocaleFontToTree(panel)
+        end
     end)
 
     resetTarget:SetScript("OnClick", function()

@@ -133,6 +133,18 @@ function MainFrame:Init()
             ns.LogbookUI:Hide()
         end
     end)
+
+    -- Locales the client font can't render (Russian on a Western client) need the
+    -- bundled face on EVERY FontString, not just the ones built via Theme.Sans /
+    -- Theme.Serif. Sweep the whole tree once the sub-panels exist, then again on
+    -- each show so anything built lazily afterwards is caught too. No-op on
+    -- locales the client fonts already cover.
+    if T and T.ApplyLocaleFontToTree then
+        T.ApplyLocaleFontToTree(frame)
+        frame:HookScript("OnShow", function(self_)
+            T.ApplyLocaleFontToTree(self_)
+        end)
+    end
 end
 
 -- ---------------------------------------------------------------------------

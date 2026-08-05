@@ -79,6 +79,11 @@ function Build-Variant {
     # Copy directories (names must match TOC paths exactly for case-sensitive OS)
     Copy-Item (Join-Path $root "Core") -Destination (Join-Path $addonDir "Core") -Recurse
     Copy-Item (Join-Path $root "data") -Destination (Join-Path $addonDir "data") -Recurse
+    # Fonts carries the bundled Unicode faces (PT Sans/Serif). Without them
+    # Theme.lua's SetFont fails and falls back to the client font, so any locale
+    # in BUNDLED_FONT_LOCALES (Russian) renders as boxes in a packaged build even
+    # though it looks fine running from the repo folder.
+    Copy-Item (Join-Path $root "Fonts") -Destination (Join-Path $addonDir "Fonts") -Recurse
     Copy-Item (Join-Path $root "Locales") -Destination (Join-Path $addonDir "Locales") -Recurse
     Copy-Item (Join-Path $root "Spotting") -Destination (Join-Path $addonDir "Spotting") -Recurse
     Copy-Item (Join-Path $root "UI") -Destination (Join-Path $addonDir "UI") -Recurse

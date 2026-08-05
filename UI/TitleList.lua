@@ -215,7 +215,7 @@ function TitleList:InitTitleRow(row, record)
     -- boxes. Re-point the row's text at the bundled Unicode face once per frame
     -- (locale is fixed for the session; changing it reloads the UI). No-op on
     -- locales the client fonts already cover.
-    if not row.localeFontDone and T and T.ApplyLocaleFont then
+    if not row.localeFontDone and T and T.NeedsLocaleFont and T.NeedsLocaleFont() then
         T.ApplyLocaleFont(row.TitleText)
         T.ApplyLocaleFont(row.SourceText)
         T.ApplyLocaleFont(row.TypeTag)
@@ -434,7 +434,10 @@ end
 -- Group header initialiser
 -- ---------------------------------------------------------------------------
 function TitleList:InitGroupHeader(header, data)
-    if not header.localeFontDone and T and T.ApplyLocaleFont then
+    -- Gate the latch on NeedsLocaleFont, not just on the call existing: if this
+    -- ran once while the active locale was still unresolved, ApplyLocaleFont is a
+    -- no-op and the flag would pin the header to the client font for good.
+    if not header.localeFontDone and T and T.NeedsLocaleFont and T.NeedsLocaleFont() then
         T.ApplyLocaleFont(header.Label)
         header.localeFontDone = true
     end
