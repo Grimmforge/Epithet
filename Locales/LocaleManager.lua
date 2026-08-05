@@ -46,6 +46,7 @@ local LOCALE_NAMES = {
 local LANGUAGE_NAME_KEYS = {
     enGB = "LANGUAGE_ENGLISH",
     ruRU = "LANGUAGE_RUSSIAN",
+    frFR = "LANGUAGE_FRENCH",
 }
 
 -- Display name for a locale code. Prefers the active-language name (via ns.L),

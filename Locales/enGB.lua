@@ -118,6 +118,7 @@ L["MINIMAP_SHOWN"] = "Minimap button shown."
 -- What's New
 L["WHATS_NEW_HEADING"] = "What's New"
 L["WHATS_NEW_CLOSE"] = "Close"
+L["WHATS_NEW_LINK_PROMPT"] = "Copy this link:\nIt's already selected below - press Ctrl+C to copy it."
 
 -- Social layer / title spotting
 L["SOCIAL_LAYER"] = "Title Spotting"
@@ -129,6 +130,8 @@ L["SOCIAL_TARGET_RESET"] = "Reset target nameplate position"
 L["SOCIAL_TARGET_EDIT_HINT"] = "EDIT MODE · Left-drag to move · Right-click to lock"
 L["SOCIAL_TARGET_EDIT_TOP"] = "EDIT MODE"
 L["SOCIAL_TARGET_EDIT_BOTTOM"] = "Left-drag to move · Right-click to lock"
+L["SOCIAL_TARGET_TOOLTIP_LEFT"] = "Left-click to view this title in Epithet."
+L["SOCIAL_TARGET_TOOLTIP_RIGHT"] = "Right-click to unlock and move this nameplate."
 L["SOCIAL_TARGET_PLACEHOLDER_TITLE"] = "Example Title"
 L["SOCIAL_TARGET_PLACEHOLDER_RARITY"] = "RARE"
 L["SOCIAL_PRESTIGE_FORMAT"] = "%s %s"
@@ -529,6 +532,7 @@ L["INFO_BUTTON_TOOLTIP"] = "About Epithet"
 -- Language names (shown in the picker, in the active language)
 L["LANGUAGE_ENGLISH"] = "English"
 L["LANGUAGE_RUSSIAN"] = "Russian"
+L["LANGUAGE_FRENCH"] = "French"
 
 -- Options: language section
 L["OPTIONS_LANGUAGE_SECTION"] = "Language"

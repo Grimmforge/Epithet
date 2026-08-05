@@ -45,7 +45,7 @@ local DB_DEFAULTS = {
             spotNotify = true,
             achievementNotify = true,
             achievementNotifyMode = "full",
-            achievementAlertAnchor = "uiparent",
+            achievementAlertAnchor = "alertframe",
             spotLogScope = "spotted",
             spotLogView = "grid",
             hideInCombat = true,
@@ -687,7 +687,7 @@ function Epithet:OnInitialize()
     s.achievementNotifyMode = mode
     s.achievementNotify = (mode ~= "off")
     if s.achievementAlertAnchor ~= "uiparent" and s.achievementAlertAnchor ~= "alertframe" then
-        s.achievementAlertAnchor = "uiparent"
+        s.achievementAlertAnchor = "alertframe"
     end
     if s.spotLogScope ~= "spotted" and s.spotLogScope ~= "remaining" then
         s.spotLogScope = "spotted"

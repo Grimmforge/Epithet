@@ -113,6 +113,7 @@ L["MINIMAP_SHOWN"] = "Кнопка у миникарты включена."
 -- What's New
 L["WHATS_NEW_HEADING"] = "Что нового"
 L["WHATS_NEW_CLOSE"] = "Закрыть"
+L["WHATS_NEW_LINK_PROMPT"] = "Скопируйте эту ссылку:\nОна уже выделена ниже - нажмите Ctrl+C, чтобы скопировать."
 
 -- Social layer / title spotting
 L["SOCIAL_LAYER"] = "Распознавание званий"
@@ -124,6 +125,8 @@ L["SOCIAL_TARGET_RESET"] = "Сбросить позицию индикатора
 L["SOCIAL_TARGET_EDIT_HINT"] = "РЕЖИМ РЕДАКТИРОВАНИЯ · ЛКМ+перетаскивание для перемещения · ПКМ для фиксации"
 L["SOCIAL_TARGET_EDIT_TOP"] = "РЕЖИМ РЕДАКТИРОВАНИЯ"
 L["SOCIAL_TARGET_EDIT_BOTTOM"] = "ЛКМ+перетаскивание для перемещения · ПКМ для фиксации"
+L["SOCIAL_TARGET_TOOLTIP_LEFT"] = "ЛКМ - открыть это звание в Epithet."
+L["SOCIAL_TARGET_TOOLTIP_RIGHT"] = "ПКМ - разблокировать и переместить индикатор."
 L["SOCIAL_TARGET_PLACEHOLDER_TITLE"] = "Пример звания"
 L["SOCIAL_TARGET_PLACEHOLDER_RARITY"] = "РЕДКОЕ"
 L["SOCIAL_PRESTIGE_FORMAT"] = "%s %s"
@@ -291,11 +294,11 @@ L["SPOT_ACHV_DESC_QUITE_A_MOUTHFUL"] = "Распознайте звание, т�
 L["SPOT_ACHV_NAME_TERSE"] = "Краткость"
 L["SPOT_ACHV_DESC_TERSE"] = "Распознайте звание, текст которого в каталоге содержит 5 или менее символов."
 L["SPOT_ACHV_NAME_LORD_OF_LORDS"] = "Повелитель повелителей"
-L["SPOT_ACHV_DESC_LORD_OF_LORDS"] = "Распознайте 5 уникальных званий, содержащих слово «Повелитель»."
+L["SPOT_ACHV_DESC_LORD_OF_LORDS"] = "Распознайте 5 уникальных званий, английское название которых содержит «Lord»."
 L["SPOT_ACHV_NAME_MASTERCLASS"] = "Мастер-класс"
-L["SPOT_ACHV_DESC_MASTERCLASS"] = "Распознайте 5 уникальных званий, содержащих слово «Мастер»."
+L["SPOT_ACHV_DESC_MASTERCLASS"] = "Распознайте 5 уникальных званий, английское название которых содержит «Master»."
 L["SPOT_ACHV_NAME_SLAY"] = "Убийственная мода"
-L["SPOT_ACHV_DESC_SLAY"] = "Распознайте 5 уникальных званий, содержащих слово «Убийца»."
+L["SPOT_ACHV_DESC_SLAY"] = "Распознайте 5 уникальных званий, английское название которых содержит «Slayer»."
 L["SPOT_ACHV_NAME_GLADIATOR_GROUPIE"] = "Фанат гладиаторов"
 L["SPOT_ACHV_DESC_GLADIATOR_GROUPIE"] = "Распознайте 5 званий, полученных за PvP-активности."
 L["SPOT_ACHV_NAME_RAID_SPECTATOR"] = "Зритель рейдов"
@@ -523,6 +526,7 @@ L["INFO_BUTTON_TOOLTIP"] = "О Epithet"
 -- Language names (shown in the picker, in the active language)
 L["LANGUAGE_ENGLISH"] = "Английский"
 L["LANGUAGE_RUSSIAN"] = "Русский"
+L["LANGUAGE_FRENCH"] = "Французский"
 
 -- Options: language section
 L["OPTIONS_LANGUAGE_SECTION"] = "Язык"

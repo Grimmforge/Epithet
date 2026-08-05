@@ -109,26 +109,42 @@ body  = { enUS = [[ ... ]], ruRU = [[ ... ]] },
 `WhatsNew:LocalizeField` resolves the active locale and falls back to `enUS`, so
 adding a translation is purely additive — drop in a new locale key.
 
-## Keyword achievements (special case)
+## Text-based achievements (nothing to translate)
 
-A few Spotting achievements (`lord_of_lords`, `masterclass`, `slay`) match
-against **English words inside title text**. Since Blizzard localizes title text,
-these need a per-locale search word. They live in a data table in
-`Spotting/Achievements.lua`:
+Five Spotting achievements are decided by a title's *text*: `lord_of_lords`,
+`masterclass` and `slay` look for a word in it, `quite_a_mouthful` and `terse`
+measure its length.
+
+These match the **English catalogue name**, not the name on screen, so they need
+no per-locale data and work identically on every client. The spotting log is
+keyed by `titleID` — Blizzard's numeric ID, the same in every locale — and the
+bundled DB (`data/TitlesDB.enGB.lua`) is always English, so `CatalogueText()` in
+`Spotting/Achievements.lua` resolves any spotted title back to its English name.
+The search words are therefore plain constants:
 
 ```lua
 local KEYWORD_ACHIEVEMENTS = {
-    lord_of_lords = { enUS = "lord",   enGB = "lord"   },
-    masterclass   = { enUS = "master", enGB = "master" },
-    slay          = { enUS = "slayer", enGB = "slayer" },
+    lord_of_lords = "lord",
+    masterclass   = "master",
+    slay          = "slayer",
 }
 ```
 
-To enable them for your language, add your locale + the localized word (e.g.
-`ruRU = "повелитель"`). An achievement is **automatically hidden** on any locale
-it has no keyword for, so leaving it out is safe. The length-based achievements
-`quite_a_mouthful` / `terse` are gated to English via `ENGLISH_LOCALES`; open
-them to your locale there if the character-count thresholds make sense.
+Only the displayed **name and description** are translated, in the locale files.
+Because the match is on the English name and the player sees a localized one,
+non-English descriptions should say so rather than name a translated word — e.g.
+frFR: *"Repérez 5 titres distincts dont le nom anglais contient « Lord »."*
+
+`CatalogueText()` falls back to the live `GetTitleName()` text for any title the
+DB snapshot doesn't carry yet, so a title added by a patch before the DB is
+regenerated still counts on an English client.
+
+### Gating an achievement to specific locales
+
+`LocaleAllows(def)` still honours a `locales` set on a Registry entry (checked
+against `GetLocale()`, the game client's language). Nothing uses it today — the
+achievements that once needed it are language-neutral now — but it's there if a
+future achievement genuinely cannot be earned in some language.
 
 ## Validating
 
@@ -145,6 +161,12 @@ Exit code is non-zero on any error, so it can gate CI.
 
 The title database is separate from the UI strings above, but follows the same
 base-plus-overlay shape.
+
+> Both files are collector-generated (see the sibling `TitlesDBCollector` repo's
+> `tools/schema.json` `localeOverlay` section and its README's "Locale support"
+> section). The field list and output shape here are a **shared contract** —
+> changing one side without the other breaks translations silently until
+> someone runs `scripts/validate/validate-titlesdb-locales.ps1`.
 
 - **`data/TitlesDB.enGB.lua`** is the canonical base: the full English dataset,
   keyed by title text, carrying every field. It's collector-generated (gitignored).

@@ -2,8 +2,9 @@
 ## Title: Epithet
 ## Notes: Browse all player titles, see how each was obtained, rarity tiers, and track your collection.
 ## Notes-ruRU: Просмотр всех званий игроков, информация о способах их получения, рангах редкости и отслеживание вашей коллекции.
+## Notes-frFR: Parcourez tous les titres du jeu, découvrez comment chacun s'obtient, leur palier de rareté, et suivez votre collection.
 ## Author: Joe Tomkinson @ GrimmsForge (Grimmvöcare - Bronzebeard)
-## Version: 1.2.0
+## Version: 1.3.0
 ## SavedVariables: EpithetDB
 ## IconTexture: Interface\AddOns\Epithet\icons\logo\epithet-wax-seal-red-mark-64
 ## OptionalDeps: Ace3, LibDataBroker-1.1, LibDBIcon-1.0
@@ -20,6 +21,7 @@ libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
 Locales\LocaleManager.lua
 Locales\enGB.lua
 Locales\ruRU.lua
+Locales\frFR.lua
 
 # Bundled Data
 # enGB is the canonical base; localised overlays load AFTER it and fall back to
@@ -28,6 +30,7 @@ data\TitlesDB.enGB.lua
 # data\TitlesDB.ruRU.lua
 WhatsNew\Content.lua
 WhatsNew\Versions\v1_2_0.lua
+WhatsNew\Versions\v1_3_0.lua
 
 # Core
 Core\Theme.lua

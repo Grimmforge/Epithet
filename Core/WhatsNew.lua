@@ -12,9 +12,18 @@ local C_Timer = C_Timer
 local CreateFrame = CreateFrame
 local GetAddOnMetadata = GetAddOnMetadata
 local UIParent = UIParent
+local StaticPopupDialogs = StaticPopupDialogs
+local StaticPopup_Show = StaticPopup_Show
 local gsub = string.gsub
 local match = string.match
 local tostring = tostring
+
+local function Trim(value)
+    local s = tostring(value or "")
+    s = s:gsub("^%s+", "")
+    s = s:gsub("%s+$", "")
+    return s
+end
 
 -- The dialogue used to be rendered by handing a hand-built HTML string to a
 -- SimpleHTML widget, but that widget only parses markup if the whole document
@@ -55,6 +64,12 @@ end
 -- lines in the source are ignored entirely - spacing between blocks is a
 -- fixed property of the block types involved (see BLOCK_STYLE), not
 -- something content authors need to remember to add.
+--
+-- A line may open with either "*" or "-" as its bullet marker (both are
+-- common markdown convention, and content has been authored with both), and
+-- "[label](url)" - optionally bullet-prefixed - becomes a clickable "link"
+-- block. WoW can't open a browser from an addon, so a link block doesn't
+-- navigate anywhere; see WhatsNew:ShowLinkPopup for what clicking it does.
 local function BuildBlocks(body)
     local src = tostring(body or "")
     local blocks = {}
@@ -63,7 +78,11 @@ local function BuildBlocks(body)
         if not line:match("^%s*$") then
             local h2 = match(line, "^%s*##%s+(.+)$")
             local h1 = (not h2) and match(line, "^%s*#%s+(.+)$")
-            local bullet = (not h2 and not h1) and match(line, "^%s*%*%s+(.+)$")
+            local linkLabel, linkURL
+            if not h2 and not h1 then
+                linkLabel, linkURL = match(line, "^%s*[%*%-]?%s*%[(.-)%]%((.-)%)%s*$")
+            end
+            local bullet = (not h2 and not h1 and not linkLabel) and match(line, "^%s*[%*%-]%s+(.+)$")
             local imageDirective = match(line, "^%s*!%[[^%]]*%]%((.+)%)%s*$")
 
             if imageDirective and imageDirective ~= "" then
@@ -73,6 +92,8 @@ local function BuildBlocks(body)
                 blocks[#blocks + 1] = { type = "h2", text = RenderInlineColor(h2) }
             elseif h1 then
                 blocks[#blocks + 1] = { type = "h1", text = RenderInlineColor(h1) }
+            elseif linkLabel then
+                blocks[#blocks + 1] = { type = "link", text = RenderInlineColor(linkLabel), url = Trim(linkURL) }
             elseif bullet then
                 blocks[#blocks + 1] = { type = "bullet", text = RenderInlineColor(bullet) }
             else
@@ -84,6 +105,28 @@ local function BuildBlocks(body)
     return blocks
 end
 
+-- UTF-8 encoded Cyrillic (U+0400-U+04FF -> lead byte 0xD0-0xD3) is the one
+-- script the client's FRIZQT__ font doesn't cover but the bundled Unicode font
+-- does (see Fonts/README.md). Checked per rendered block rather than gated on
+-- the active display locale (contrast Theme.NeedsBundledFont): a line can
+-- deliberately mix scripts - e.g. this very file's own multilingual "Bonjour,
+-- Привет, Hello!" heading - regardless of which language the reader has
+-- Epithet set to.
+local function ContainsCyrillic(text)
+    return text ~= nil and text:find("[\208-\211][\128-\191]") ~= nil
+end
+
+-- Picks the bundled Unicode font over the client font only for the blocks
+-- that actually need it, so the popup's typography stays the client's own
+-- FRIZQT__ everywhere else.
+local function ApplyBlockFont(fontLike, path, size, text)
+    if T and T.ApplyUnicodeSansFont and ContainsCyrillic(text) then
+        T.ApplyUnicodeSansFont(fontLike, size)
+    else
+        fontLike:SetFont(path, size, "")
+    end
+end
+
 -- Layout constants: content width matches the scroll frame's inner width
 -- (760 dialogue - 18 left inset - 38 right inset - scrollbar allowance), and
 -- each block type carries its own font/colour plus the gap it always gets
@@ -93,12 +136,30 @@ local BODY_WIDTH = 690
 local BULLET_INDENT = 14
 local IMAGE_GAP_BEFORE = 14
 
+-- WoW hyperlink blue, distinct from the theme's gold body/emphasis colours so a
+-- link visibly reads as clickable; brightens further on hover.
+local LINK_COLOR = { 0.45, 0.73, 1.0 }
+local LINK_HOVER_COLOR = { 0.68, 0.86, 1.0 }
+
+-- gapAfter is a heading's own trailing margin, added under it regardless of
+-- what follows - relying solely on the next block's gapBefore isn't enough,
+-- because a heading rendered in a different font (e.g. the bundled Unicode
+-- font a Cyrillic-containing heading switches to, see ApplyBlockFont) can have
+-- different line-height metrics than GetStringHeight() assumes elsewhere,
+-- which visibly eats into that gap.
 local BLOCK_STYLE = {
-    h1 = { font = "Fonts\\FRIZQT__.TTF", size = 18, color = { 0.96, 0.89, 0.65 }, gapBefore = 18 },
-    h2 = { font = "Fonts\\FRIZQT__.TTF", size = 14, color = { 0.90, 0.80, 0.52 }, gapBefore = 16 },
+    h1 = { font = "Fonts\\FRIZQT__.TTF", size = 18, color = { 0.96, 0.89, 0.65 }, gapBefore = 18, gapAfter = 10 },
+    h2 = { font = "Fonts\\FRIZQT__.TTF", size = 14, color = { 0.90, 0.80, 0.52 }, gapBefore = 16, gapAfter = 8 },
     p = { font = "Fonts\\FRIZQT__.TTF", size = 12, color = { 0.86, 0.82, 0.74 }, gapBefore = 10 },
     bullet = { font = "Fonts\\FRIZQT__.TTF", size = 12, color = { 0.86, 0.82, 0.74 }, gapBefore = 10, gapBeforeSameType = 4 },
+    link = { font = "Fonts\\FRIZQT__.TTF", size = 12, color = LINK_COLOR, gapBefore = 10, gapBeforeSameType = 4 },
 }
+
+-- Bullets and links both render as an indented "• " list row, and sit tight
+-- against a same-type neighbour (see BLOCK_STYLE[...].gapBeforeSameType).
+local function IsListItem(blockType)
+    return blockType == "bullet" or blockType == "link"
+end
 
 function WhatsNew:AcquireTextWidget(index)
     self.textWidgets = self.textWidgets or {}
@@ -123,16 +184,51 @@ function WhatsNew:AcquireImageWidget(index)
     return tex
 end
 
+-- A link block needs to be clickable, which a FontString can never be, so it
+-- gets its own pooled Button (with a FontString label) instead of reusing
+-- AcquireTextWidget. See WhatsNew:ShowLinkPopup for what a click does.
+function WhatsNew:AcquireLinkWidget(index)
+    self.linkWidgets = self.linkWidgets or {}
+    local btn = self.linkWidgets[index]
+    if not btn then
+        btn = CreateFrame("Button", nil, self.dialogContent)
+        btn:EnableMouse(true)
+
+        local label = btn:CreateFontString(nil, "ARTWORK")
+        label:SetJustifyH("LEFT")
+        label:SetJustifyV("TOP")
+        label:SetWordWrap(true)
+        label:SetPoint("TOPLEFT", btn, "TOPLEFT", 0, 0)
+        label:SetPoint("TOPRIGHT", btn, "TOPRIGHT", 0, 0)
+        btn.label = label
+
+        btn:SetScript("OnEnter", function(self_)
+            self_.label:SetTextColor(LINK_HOVER_COLOR[1], LINK_HOVER_COLOR[2], LINK_HOVER_COLOR[3], 1)
+        end)
+        btn:SetScript("OnLeave", function(self_)
+            self_.label:SetTextColor(LINK_COLOR[1], LINK_COLOR[2], LINK_COLOR[3], 1)
+        end)
+        btn:SetScript("OnClick", function(self_)
+            self:ShowLinkPopup(self_.url)
+        end)
+
+        self.linkWidgets[index] = btn
+    end
+    return btn
+end
+
 -- Lays out one block per pooled widget, top to bottom, and returns the total
 -- content height so the caller can size the scroll child. Widgets are pooled
--- and reused across calls since a FontString/Texture can't be destroyed, only
--- hidden; any left over from a previous, longer body get hidden at the end.
+-- and reused across calls since a FontString/Texture/Button can't be
+-- destroyed, only hidden; any left over from a previous, longer body get
+-- hidden at the end.
 function WhatsNew:RenderBody(rawBody)
     self.textWidgets = self.textWidgets or {}
     self.imageWidgets = self.imageWidgets or {}
+    self.linkWidgets = self.linkWidgets or {}
 
     local blocks = BuildBlocks(rawBody)
-    local textIndex, imageIndex = 0, 0
+    local textIndex, imageIndex, linkIndex = 0, 0, 0
     local y = 0
     local prevType = nil
 
@@ -150,23 +246,45 @@ function WhatsNew:RenderBody(rawBody)
         else
             local style = BLOCK_STYLE[block.type]
             local gap = style.gapBefore
-            if block.type == "bullet" and prevType == "bullet" then
+            if IsListItem(block.type) and IsListItem(prevType) then
                 gap = style.gapBeforeSameType
             end
             y = y + gap
 
-            textIndex = textIndex + 1
-            local fs = self:AcquireTextWidget(textIndex)
-            fs:ClearAllPoints()
-            local indent = (block.type == "bullet") and BULLET_INDENT or 0
-            fs:SetPoint("TOPLEFT", self.dialogContent, "TOPLEFT", indent, -y)
-            fs:SetWidth(BODY_WIDTH - indent)
-            fs:SetFont(style.font, style.size, "")
-            fs:SetTextColor(style.color[1], style.color[2], style.color[3], 1)
-            fs:SetText(block.type == "bullet" and ("\226\128\162  " .. block.text) or block.text)
-            fs:Show()
+            local indent = IsListItem(block.type) and BULLET_INDENT or 0
+            local width = BODY_WIDTH - indent
 
-            y = y + (fs:GetStringHeight() or (style.size + 4))
+            if block.type == "link" then
+                linkIndex = linkIndex + 1
+                local btn = self:AcquireLinkWidget(linkIndex)
+                btn:ClearAllPoints()
+                btn:SetPoint("TOPLEFT", self.dialogContent, "TOPLEFT", indent, -y)
+                btn:SetWidth(width)
+                ApplyBlockFont(btn.label, style.font, style.size, block.text)
+                btn.label:SetTextColor(style.color[1], style.color[2], style.color[3], 1)
+                btn.label:SetText("\226\128\162  " .. block.text)
+                btn.url = block.url
+                btn:SetHeight(math.max(style.size + 4, btn.label:GetStringHeight() or 0))
+                btn:Show()
+
+                y = y + btn:GetHeight()
+            else
+                textIndex = textIndex + 1
+                local fs = self:AcquireTextWidget(textIndex)
+                fs:ClearAllPoints()
+                fs:SetPoint("TOPLEFT", self.dialogContent, "TOPLEFT", indent, -y)
+                fs:SetWidth(width)
+                ApplyBlockFont(fs, style.font, style.size, block.text)
+                fs:SetTextColor(style.color[1], style.color[2], style.color[3], 1)
+                fs:SetText(block.type == "bullet" and ("\226\128\162  " .. block.text) or block.text)
+                fs:Show()
+
+                y = y + (fs:GetStringHeight() or (style.size + 4))
+            end
+
+            if style.gapAfter then
+                y = y + style.gapAfter
+            end
         end
 
         prevType = block.type
@@ -177,6 +295,9 @@ function WhatsNew:RenderBody(rawBody)
     end
     for i = imageIndex + 1, #self.imageWidgets do
         self.imageWidgets[i]:Hide()
+    end
+    for i = linkIndex + 1, #self.linkWidgets do
+        self.linkWidgets[i]:Hide()
     end
 
     return y
@@ -201,12 +322,18 @@ function WhatsNew:GetContentForVersion(version)
 end
 
 -- A What's New field (title/body) may be either a plain string (single language)
--- or a table keyed by locale, e.g. { enUS = [[...]], ruRU = [[...]] }. Resolve to
--- the active locale, falling back to English so a version that hasn't been
--- translated yet still renders rather than showing blank.
+-- or a table keyed by locale, e.g. { enUS = [[...]], ruRU = [[...]] }. Resolve
+-- against ns.activeLocale - the language Epithet:OnInitialize applied from the
+-- player's own language picker (Options -> Epithet -> Language), which can
+-- differ from the game client's own GetLocale() - falling back to that only if
+-- ApplyLocale genuinely hasn't run yet, then to English so a version that
+-- hasn't been translated still renders rather than showing blank. English
+-- content is keyed "enUS" here, but ns.activeLocale normalises an English
+-- client/preference to "enGB" (see LocaleManager.lua), so that lookup misses
+-- and falls through to value.enUS below - by design, not a bug.
 function WhatsNew:LocalizeField(value)
     if type(value) == "table" then
-        local locale = (GetLocale and GetLocale()) or "enUS"
+        local locale = ns.activeLocale or (GetLocale and GetLocale()) or "enUS"
         return value[locale] or value.enUS or value.enGB or value.default or ""
     end
     return value
@@ -263,6 +390,51 @@ function WhatsNew:DismissCurrentVersion()
     state.hasNew = false
 end
 
+-- WoW addons can't open an external browser, so a link block's click handler
+-- opens a small Blizzard StaticPopup with the URL pre-selected in an edit box
+-- instead - the standard WoW addon pattern for "here's a link, please copy it
+-- yourself" (the same trick the Spotting Log's export/import modal uses for
+-- its payload text). Registered lazily on first use, not at file load, so
+-- L[...] resolves against the locale Epithet:OnInitialize has already applied
+-- by the time a player can actually click a link.
+function WhatsNew:ShowLinkPopup(url)
+    if not url or url == "" then
+        return
+    end
+
+    if not StaticPopupDialogs["EPITHET_WHATSNEW_LINK"] then
+        StaticPopupDialogs["EPITHET_WHATSNEW_LINK"] = {
+            text = (L and L["WHATS_NEW_LINK_PROMPT"]) or "Copy this link:\nIt's already selected below - press Ctrl+C to copy it.",
+            button1 = OKAY,
+            hasEditBox = true,
+            editBoxWidth = 350,
+            -- Read popup.data rather than trusting an OnShow(self, data) call
+            -- signature: dialog.data is what StaticPopup_Show's 4th argument
+            -- reliably lands on, and that held even when the data wasn't also
+            -- being threaded through as OnShow's second parameter (which is
+            -- what left this edit box blank). Also try the legacy
+            -- "<name>EditBox" global as a fallback in case a client's popup
+            -- template doesn't expose the editBox parentKey.
+            OnShow = function(popup)
+                local edit = popup.editBox or (popup.GetName and _G[popup:GetName() .. "EditBox"])
+                if not edit then return end
+                local linkURL = popup.data and popup.data.url
+                edit:SetText(linkURL or "")
+                edit:HighlightText()
+                edit:SetFocus()
+            end,
+            EditBoxOnEnterPressed = function(popup) popup:GetParent():Hide() end,
+            EditBoxOnEscapePressed = function(popup) popup:GetParent():Hide() end,
+            timeout = 0,
+            whileDead = true,
+            hideOnEscape = true,
+            preferredIndex = 3,
+        }
+    end
+
+    StaticPopup_Show("EPITHET_WHATSNEW_LINK", nil, nil, { url = url })
+end
+
 function WhatsNew:EnsureDialog()
     if self.dialog then
         return self.dialog
@@ -290,18 +462,93 @@ function WhatsNew:EnsureDialog()
     end
     frame:Hide()
 
+    -- Bordered button chrome shared by the header close button and the
+    -- bottom Dismiss button. With no iconPath it renders a text label (the
+    -- original Dismiss look); with one it centres that texture instead - used
+    -- for the close button so it matches the tinted-icon close button already
+    -- established in UI/MainFrame.xml rather than inventing a second style.
+    local function Skin(button, iconPath)
+        local bg = button:CreateTexture(nil, "BACKGROUND")
+        bg:SetAllPoints()
+        bg:SetColorTexture(0.11, 0.08, 0.04, 1.0)
+        button.bg = bg
+
+        local top = button:CreateTexture(nil, "BORDER")
+        top:SetHeight(1)
+        top:SetPoint("TOPLEFT")
+        top:SetPoint("TOPRIGHT")
+        top:SetColorTexture(0.49, 0.37, 0.15, 1.0)
+
+        local bottom = button:CreateTexture(nil, "BORDER")
+        bottom:SetHeight(1)
+        bottom:SetPoint("BOTTOMLEFT")
+        bottom:SetPoint("BOTTOMRIGHT")
+        bottom:SetColorTexture(0.49, 0.37, 0.15, 1.0)
+
+        local left = button:CreateTexture(nil, "BORDER")
+        left:SetWidth(1)
+        left:SetPoint("TOPLEFT")
+        left:SetPoint("BOTTOMLEFT")
+        left:SetColorTexture(0.49, 0.37, 0.15, 1.0)
+
+        local right = button:CreateTexture(nil, "BORDER")
+        right:SetWidth(1)
+        right:SetPoint("TOPRIGHT")
+        right:SetPoint("BOTTOMRIGHT")
+        right:SetColorTexture(0.49, 0.37, 0.15, 1.0)
+
+        if iconPath then
+            local icon = button:CreateTexture(nil, "OVERLAY")
+            icon:SetSize(18, 18)
+            icon:SetPoint("CENTER")
+            icon:SetTexture(iconPath)
+            icon:SetVertexColor(0.91, 0.78, 0.45)
+            button.icon = icon
+
+            button:SetScript("OnEnter", function(self_)
+                self_.bg:SetColorTexture(0.16, 0.12, 0.07, 1.0)
+                self_.icon:SetVertexColor(0.96, 0.89, 0.65)
+            end)
+            button:SetScript("OnLeave", function(self_)
+                self_.bg:SetColorTexture(0.11, 0.08, 0.04, 1.0)
+                self_.icon:SetVertexColor(0.91, 0.78, 0.45)
+            end)
+        else
+            local label = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            label:SetPoint("CENTER")
+            label:SetTextColor(0.91, 0.78, 0.45)
+            button.label = label
+
+            button:SetScript("OnEnter", function(self_)
+                self_.bg:SetColorTexture(0.16, 0.12, 0.07, 1.0)
+                self_.label:SetTextColor(0.96, 0.89, 0.65)
+            end)
+            button:SetScript("OnLeave", function(self_)
+                self_.bg:SetColorTexture(0.11, 0.08, 0.04, 1.0)
+                self_.label:SetTextColor(0.91, 0.78, 0.45)
+            end)
+        end
+    end
+
+    -- Logo, left of the title - the same wax-seal mark used in the main
+    -- window's own title bar (UI/MainFrame.xml), for a consistent look.
+    local logo = frame:CreateTexture(nil, "ARTWORK")
+    logo:SetSize(28, 28)
+    logo:SetPoint("TOPLEFT", 14, -10)
+    logo:SetTexture("Interface\\AddOns\\Epithet\\icons\\logo\\epithet-wax-seal-red-mark-32")
+
     local heading = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
-    heading:SetPoint("TOPLEFT", 14, -12)
-    heading:SetPoint("TOPRIGHT", -40, -12)
+    heading:SetPoint("LEFT", logo, "RIGHT", 8, 0)
+    heading:SetPoint("RIGHT", frame, "RIGHT", -46, 0)
     heading:SetJustifyH("LEFT")
 
+    -- Sized and skinned to match UI/MainFrame.xml's own close button (26x26
+    -- hit area, tinted-icon style) - the plain 18x18 text "x" this replaces
+    -- was a noticeably smaller and harder-to-hit target than that button.
     local closeButton = CreateFrame("Button", nil, frame)
-    closeButton:SetSize(18, 18)
-    closeButton:SetPoint("TOPRIGHT", -10, -10)
-    local closeText = closeButton:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    closeText:SetPoint("CENTER")
-    closeText:SetText("x")
-    closeText:SetTextColor(0.95, 0.90, 0.75)
+    closeButton:SetSize(26, 26)
+    closeButton:SetPoint("TOPRIGHT", -8, -8)
+    Skin(closeButton, "Interface\\AddOns\\Epithet\\icons\\ui\\epithet-ui-close-16")
 
     local divider = frame:CreateTexture(nil, "BORDER")
     divider:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -38)
@@ -343,52 +590,6 @@ function WhatsNew:EnsureDialog()
     local dismiss = CreateFrame("Button", nil, frame)
     dismiss:SetSize(220, 24)
     dismiss:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -12, 14)
-
-    local function Skin(button)
-        local bg = button:CreateTexture(nil, "BACKGROUND")
-        bg:SetAllPoints()
-        bg:SetColorTexture(0.11, 0.08, 0.04, 1.0)
-        button.bg = bg
-
-        local top = button:CreateTexture(nil, "BORDER")
-        top:SetHeight(1)
-        top:SetPoint("TOPLEFT")
-        top:SetPoint("TOPRIGHT")
-        top:SetColorTexture(0.49, 0.37, 0.15, 1.0)
-
-        local bottom = button:CreateTexture(nil, "BORDER")
-        bottom:SetHeight(1)
-        bottom:SetPoint("BOTTOMLEFT")
-        bottom:SetPoint("BOTTOMRIGHT")
-        bottom:SetColorTexture(0.49, 0.37, 0.15, 1.0)
-
-        local left = button:CreateTexture(nil, "BORDER")
-        left:SetWidth(1)
-        left:SetPoint("TOPLEFT")
-        left:SetPoint("BOTTOMLEFT")
-        left:SetColorTexture(0.49, 0.37, 0.15, 1.0)
-
-        local right = button:CreateTexture(nil, "BORDER")
-        right:SetWidth(1)
-        right:SetPoint("TOPRIGHT")
-        right:SetPoint("BOTTOMRIGHT")
-        right:SetColorTexture(0.49, 0.37, 0.15, 1.0)
-
-        local label = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        label:SetPoint("CENTER")
-        label:SetTextColor(0.91, 0.78, 0.45)
-        button.label = label
-
-        button:SetScript("OnEnter", function(self_)
-            self_.bg:SetColorTexture(0.16, 0.12, 0.07, 1.0)
-            self_.label:SetTextColor(0.96, 0.89, 0.65)
-        end)
-
-        button:SetScript("OnLeave", function(self_)
-            self_.bg:SetColorTexture(0.11, 0.08, 0.04, 1.0)
-            self_.label:SetTextColor(0.91, 0.78, 0.45)
-        end)
-    end
 
     Skin(dismiss)
     dismiss.label:SetText((L and L["WHATS_NEW_CLOSE"]) or "Close")

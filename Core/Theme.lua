@@ -119,6 +119,19 @@ local function ApplyFont(fontLike, preferred, client, size, flags)
     fontLike:SetFont(client, size, flags)
 end
 
+-- Unconditionally applies the bundled Unicode Sans font (PT Sans: Latin +
+-- Cyrillic), regardless of the active display locale. Theme.Sans/SansFontPath
+-- gate on NeedsBundledFont() because most text is purely in the active
+-- locale's own script, but some content (e.g. the WhatsNew popup's
+-- multilingual headings) deliberately mixes scripts on a single line, so a
+-- reader on an English or French client can still land on Cyrillic text that
+-- the client font can't render. Falls back to the client font exactly like
+-- ApplyFont does if the bundled file is ever missing.
+function Theme.ApplyUnicodeSansFont(fontLike, size, flags)
+    if not fontLike then return end
+    ApplyFont(fontLike, BUNDLED_SANS, CLIENT_SANS, size or 12, flags)
+end
+
 function Theme.Serif(parent, size, col)
     local fs = parent:CreateFontString(nil, "OVERLAY")
     ApplyFont(fs, Theme.SerifFontPath(), CLIENT_SERIF, size or 16)

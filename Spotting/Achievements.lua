@@ -685,6 +685,31 @@ local function NormalizedMetaText(meta)
     return text
 end
 
+-- A title's ENGLISH catalogue name, i.e. the text the bundled DB is keyed by.
+--
+-- A live record's `text` comes from GetTitleName(), which Blizzard returns
+-- already localised, so it reads differently on every client. The bundled DB is
+-- titleID-keyed (titleIDs are identical in every locale) and always English, so
+-- matching text-based achievements against this instead makes them resolve the
+-- same way in every language rather than only on an English client.
+--
+-- Falls back to the live localised text for any title the DB snapshot doesn't
+-- carry yet: on an English client that is still the English name, so newly-added
+-- titles keep counting exactly as they did before.
+local function CatalogueText(titleID, meta)
+    local byID = ns.EpithetData and ns.EpithetData.titlesByID
+    local entry = byID and byID[tonumber(titleID)]
+    local text = entry and entry.text
+    if type(text) == "string" then
+        text = text:gsub("^%s+", ""):gsub("%s+$", "")
+        if text ~= "" then
+            return text
+        end
+    end
+
+    return NormalizedMetaText(meta)
+end
+
 local function NormalizedMetaToken(meta, key)
     local value = meta and meta[key]
     if type(value) ~= "string" then
@@ -735,8 +760,7 @@ local function CountDistinctTitlesByTextMatch(spotted, needle)
 
     local n = 0
     for titleID in pairs(spotted) do
-        local meta = TitleMeta(titleID)
-        local text = NormalizedMetaText(meta)
+        local text = CatalogueText(titleID, TitleMeta(titleID))
         if text and text:lower():find(keyword, 1, true) then
             n = n + 1
         end
@@ -756,10 +780,12 @@ local function CountDistinctTitlesBySource(spotted, sourceToken)
     return n
 end
 
+-- Length is measured on the English catalogue text, so the threshold means the
+-- same thing on every client (and stays a plain byte count: the catalogue is
+-- ASCII, unlike a localised name where one accented character is two bytes).
 local function CheckQuiteAMouthful(spotted)
     for titleID, entry in pairs(spotted) do
-        local meta = TitleMeta(titleID)
-        local text = NormalizedMetaText(meta)
+        local text = CatalogueText(titleID, TitleMeta(titleID))
         if text and #text >= 25 then
             return true, ResolveSpottedTitleDetail(titleID, entry)
         end
@@ -769,8 +795,7 @@ end
 
 local function CheckTerse(spotted)
     for titleID, entry in pairs(spotted) do
-        local meta = TitleMeta(titleID)
-        local text = NormalizedMetaText(meta)
+        local text = CatalogueText(titleID, TitleMeta(titleID))
         if text and #text <= 5 then
             return true, ResolveSpottedTitleDetail(titleID, entry)
         end
@@ -778,39 +803,20 @@ local function CheckTerse(spotted)
     return false
 end
 
--- Keyword achievements match against localised title text, so the search word
--- must itself be localised. Each entry maps a locale to the word to look for;
--- adding a language is purely additive (drop in a new locale + word), and an
--- achievement is automatically enabled only on the locales it has a word for
--- (see KeywordLocales / the Registry entries below).
+-- Keyword achievements match a word against a title's English catalogue text
+-- (see CatalogueText), never against the client's localised name, so the search
+-- word is one language-neutral constant and every client hunts the same set of
+-- titles. Only the achievement's displayed name/description is translated, in
+-- the locale files.
 local KEYWORD_ACHIEVEMENTS = {
-    lord_of_lords = { enUS = "lord",   enGB = "lord"   },
-    masterclass   = { enUS = "master", enGB = "master" },
-    slay          = { enUS = "slayer", enGB = "slayer" },
+    lord_of_lords = "lord",
+    masterclass   = "master",
+    slay          = "slayer",
 }
-
-local function LocaleKeyword(id)
-    local map = KEYWORD_ACHIEVEMENTS[id]
-    if not map then return nil end
-    local locale = (GetLocale and GetLocale()) or "enUS"
-    return map[locale]
-end
-
--- Set of locales an achievement is playable in, derived from its keyword map.
-local function KeywordLocales(id)
-    local set = {}
-    local map = KEYWORD_ACHIEVEMENTS[id]
-    if map then
-        for locale in pairs(map) do
-            set[locale] = true
-        end
-    end
-    return set
-end
 
 local function CheckKeyword(id)
     return function(spotted)
-        local keyword = LocaleKeyword(id)
+        local keyword = KEYWORD_ACHIEVEMENTS[id]
         if not keyword then return false end
         return CountDistinctTitlesByTextMatch(spotted, keyword) >= TITLE_KEYWORD_THRESHOLD
     end
@@ -1468,7 +1474,7 @@ end
 
 local function ProgressKeyword(id)
     return function(spotted)
-        local keyword = LocaleKeyword(id)
+        local keyword = KEYWORD_ACHIEVEMENTS[id]
         local n = keyword and CountDistinctTitlesByTextMatch(spotted, keyword) or 0
         return math.min(n, TITLE_KEYWORD_THRESHOLD), TITLE_KEYWORD_THRESHOLD
     end
@@ -1622,8 +1628,10 @@ local function GroupLabel(group)
     return (L and L["SPOT_ACHV_GROUP_SPOTTING"]) or "Spotting"
 end
 
-local ENGLISH_LOCALES = { enUS = true, enGB = true }
-
+-- Generic per-achievement locale gate. Nothing sets `locales` today — the
+-- text-based achievements that used to be English-only now match the English
+-- catalogue text and so work everywhere — but the hook stays for any future
+-- achievement that genuinely cannot be earned in some language.
 local function LocaleAllows(def)
     if not def or not def.locales then
         return true
@@ -1666,11 +1674,11 @@ Registry = {
     { id = "certified", check = CheckCertified, group = "spotting", secret = true },
     { id = "guising", check = CheckGuising, group = "spotting", secret = true },
 
-    { id = "quite_a_mouthful", check = CheckQuiteAMouthful, group = "spotting", locales = ENGLISH_LOCALES },
-    { id = "terse", check = CheckTerse, group = "spotting", locales = ENGLISH_LOCALES },
-    { id = "lord_of_lords", check = CheckKeyword("lord_of_lords"), progress = ProgressKeyword("lord_of_lords"), group = "spotting", locales = KeywordLocales("lord_of_lords") },
-    { id = "masterclass", check = CheckKeyword("masterclass"), progress = ProgressKeyword("masterclass"), group = "spotting", locales = KeywordLocales("masterclass") },
-    { id = "slay", check = CheckKeyword("slay"), progress = ProgressKeyword("slay"), group = "spotting", locales = KeywordLocales("slay") },
+    { id = "quite_a_mouthful", check = CheckQuiteAMouthful, group = "spotting" },
+    { id = "terse", check = CheckTerse, group = "spotting" },
+    { id = "lord_of_lords", check = CheckKeyword("lord_of_lords"), progress = ProgressKeyword("lord_of_lords"), group = "spotting" },
+    { id = "masterclass", check = CheckKeyword("masterclass"), progress = ProgressKeyword("masterclass"), group = "spotting" },
+    { id = "slay", check = CheckKeyword("slay"), progress = ProgressKeyword("slay"), group = "spotting" },
     { id = "gladiator_groupie", check = CheckGladiatorGroupie, progress = ProgressSourceSpotting("pvp"), group = "spotting" },
     { id = "raid_spectator", check = CheckRaidSpectator, progress = ProgressSourceSpotting("raid"), group = "spotting" },
     { id = "brown_noser", check = CheckBrownNoser, progress = ProgressSourceSpotting("reputation"), group = "spotting" },
@@ -1764,9 +1772,9 @@ end
 
 local function AlertAnchorMode()
     local social = ns.Epithet and ns.Epithet.db and ns.Epithet.db.profile and ns.Epithet.db.profile.social
-    local mode = social and social.achievementAlertAnchor or "uiparent"
+    local mode = social and social.achievementAlertAnchor or "alertframe"
     if mode ~= "uiparent" and mode ~= "alertframe" then
-        mode = "uiparent"
+        mode = "alertframe"
     end
     return mode
 end
@@ -1953,6 +1961,9 @@ local ALERT_ENTRANCE_SECONDS = 0.22
 local ALERT_EXIT_SECONDS = 0.35
 local ALERT_HOLD_SECONDS = 4.5
 local ALERT_MIN_REMAINING_SECONDS = 0.5
+-- Matches the gap Blizzard puts between stacked alerts
+-- (AlertFrameQueueMixin:AdjustAnchors -> SetPoint("BOTTOM", relativeAlert, "TOP", 0, 10)).
+local ALERT_STACK_GAP = 10
 
 function Achievements:EnsureAlertFrame()
     if self.alertFrame and self.alertFrame.SetPoint then
@@ -2109,6 +2120,21 @@ function Achievements:EnsureAlertFrame()
     shineOut:SetOrder(2)
     frame.shineGroup = shineGroup
 
+    -- Blizzard re-anchors its whole stack through AlertContainerMixin:UpdateAnchors,
+    -- which runs both when an alert is added (AddAlertFrame) and when a pooled one
+    -- is released (OnPooledAlertFrameQueueReset). Re-applying our anchor on the same
+    -- beat keeps us above the stack as it grows and collapses, and means we never
+    -- keep a point on an alert frame that has since been recycled and cleared.
+    if not self.alertAnchorHooked and AlertFrame and AlertFrame.UpdateAnchors and hooksecurefunc then
+        self.alertAnchorHooked = true
+        hooksecurefunc(AlertFrame, "UpdateAnchors", function()
+            local alert = owner.alertFrame
+            if alert and alert.IsShown and alert:IsShown() then
+                owner:ApplyAlertAnchor(alert)
+            end
+        end)
+    end
+
     self.alertFrame = frame
     return frame
 end
@@ -2210,6 +2236,42 @@ function Achievements:DismissAlert(frame, openLogbook)
     self:BeginAlertExit(frame)
 end
 
+-- Highest currently-visible frame in Blizzard's alert stack, or nil when nothing
+-- is showing. AlertFrame.alertFrameSubSystems holds two shapes: queue systems
+-- own a frame pool of alerts (AlertFrameQueueMixin), while externally- and
+-- auto-anchored systems contribute a single anchorFrame. Both can be on screen,
+-- so both are measured and the tallest wins.
+local function TopmostBlizzardAlert()
+    if not AlertFrame or type(AlertFrame.alertFrameSubSystems) ~= "table" then
+        return nil
+    end
+
+    local best, bestTop = nil, nil
+
+    local function Consider(candidate)
+        if not candidate or not candidate.IsShown or not candidate:IsShown() then
+            return
+        end
+        local top = candidate.GetTop and candidate:GetTop()
+        if top and (not bestTop or top > bestTop) then
+            best, bestTop = candidate, top
+        end
+    end
+
+    for _, subSystem in ipairs(AlertFrame.alertFrameSubSystems) do
+        local pool = subSystem and subSystem.alertFramePool
+        if pool and pool.EnumerateActive then
+            for alert in pool:EnumerateActive() do
+                Consider(alert)
+            end
+        end
+
+        Consider(subSystem and subSystem.anchorFrame)
+    end
+
+    return best
+end
+
 function Achievements:ApplyAlertAnchor(frame)
     frame = frame or self.alertFrame
     if not frame or not frame.ClearAllPoints then
@@ -2223,21 +2285,20 @@ function Achievements:ApplyAlertAnchor(frame)
     frame:ClearAllPoints()
 
     if AlertAnchorMode() == "alertframe" and AlertFrame then
-        -- If users have moved AlertFrame low (near action bars), anchor above it;
-        -- otherwise anchor below to avoid overlap with Blizzard alerts.
-        local useAbove = false
-        if AlertFrame.GetCenter and UIParent and UIParent.GetHeight then
-            local _, y = AlertFrame:GetCenter()
-            local uiHeight = UIParent:GetHeight() or 0
-            if y and uiHeight > 0 and y < (uiHeight * 0.40) then
-                useAbove = true
-            end
-        end
-
-        if useAbove then
-            frame:SetPoint("BOTTOM", AlertFrame, "TOP", 0, 8)
+        -- Blizzard's stack only ever grows upward from the AlertFrame stub (a
+        -- 10x10 anchor point at BOTTOM of UIParent, y=128 — just above the
+        -- action bars). Its first alert sits BOTTOM-on-BOTTOM of that stub and
+        -- each subsequent one anchors BOTTOM to the previous alert's TOP, which
+        -- is exactly what the two branches below reproduce.
+        --
+        -- Chaining off the topmost VISIBLE alert rather than the stub is the
+        -- point: the stub's own top is y=138, which lands inside a live
+        -- achievement toast (300x101, spanning y=128..229) instead of clear of it.
+        local relative = TopmostBlizzardAlert()
+        if relative then
+            frame:SetPoint("BOTTOM", relative, "TOP", 0, ALERT_STACK_GAP)
         else
-            frame:SetPoint("TOP", AlertFrame, "BOTTOM", 0, -8)
+            frame:SetPoint("BOTTOM", AlertFrame, "BOTTOM", 0, 0)
         end
 
         -- Keep this frame above common HUD/action-bar layers.

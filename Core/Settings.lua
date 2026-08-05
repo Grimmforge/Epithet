@@ -70,12 +70,12 @@ end
 
 local function NormalizeAchievementAlertAnchor(profile)
     if not profile then
-        return "uiparent"
+        return "alertframe"
     end
 
     local mode = profile.achievementAlertAnchor
     if mode ~= "uiparent" and mode ~= "alertframe" then
-        mode = "uiparent"
+        mode = "alertframe"
     end
 
     profile.achievementAlertAnchor = mode
@@ -848,7 +848,7 @@ function Options:Init()
         end
 
         if mode ~= "uiparent" and mode ~= "alertframe" then
-            mode = "uiparent"
+            mode = "alertframe"
         end
         profile.achievementAlertAnchor = mode
     end
