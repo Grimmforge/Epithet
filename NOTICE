@@ -1,0 +1,26 @@
+Epithet
+Copyright 2026 Joe Tomkinson (Grimmvocare - Bronzebeard) @ GrimmsForge
+https://github.com/Grimmsforge/Epithet
+
+This product includes software developed by Joe Tomkinson
+(Grimmvocare - Bronzebeard) @ GrimmsForge.
+
+--------------------------------------------------------------------------------
+Attribution notice for third-party integrations
+--------------------------------------------------------------------------------
+
+If your software reads Epithet's data or capabilities at runtime (for example,
+the `EpithetData` global exposed by data/TitlesDB.*.lua) to enrich its own user
+interface -- rarity colouring, source/obtainability text, title metadata, or
+similar -- please display a visible credit in that same interface, for example:
+
+    "Title data via Epithet"
+
+linking to https://github.com/Grimmsforge/Epithet where practical. This
+satisfies the attribution-notice requirements of Apache License, Version 2.0,
+Section 4(d) for that integration.
+
+This request applies to live, runtime reads of Epithet's data or capabilities
+by a separate, independently-distributed addon. It does not affect your
+rights to reproduce, modify, or redistribute Epithet's Source or Object form
+under the terms of the License -- see LICENSE.

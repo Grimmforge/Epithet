@@ -82,6 +82,7 @@ Epithet/
 ├── docs/                    # Release notes and technical guides
 ├── scripts/                 # Build, fetch-libs, link, and release scripts
 ├── LICENSE
+├── NOTICE
 └── README.md
 ```
 
@@ -170,3 +171,5 @@ It's great to see people enjoying Epithet as an add-on to the extent that they g
 ## License
 
 Apache-2.0 license - see [LICENSE](LICENSE).
+
+If your addon or tool reads Epithet's data or capabilities at runtime (e.g. the `EpithetData` global) to enrich its own UI, please display a visible credit in that UI - see [NOTICE](NOTICE) for specifics. Thanks for playing nice.
