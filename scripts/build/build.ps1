@@ -75,6 +75,8 @@ function Build-Variant {
 
     # Copy addon files
     Copy-Item (Join-Path $root "Epithet.toc") -Destination $addonDir
+    Copy-Item (Join-Path $root "LICENSE") -Destination $addonDir
+    Copy-Item (Join-Path $root "NOTICE") -Destination $addonDir
 
     # Copy directories (names must match TOC paths exactly for case-sensitive OS)
     Copy-Item (Join-Path $root "Core") -Destination (Join-Path $addonDir "Core") -Recurse

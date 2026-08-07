@@ -24,3 +24,24 @@ This request applies to live, runtime reads of Epithet's data or capabilities
 by a separate, independently-distributed addon. It does not affect your
 rights to reproduce, modify, or redistribute Epithet's Source or Object form
 under the terms of the License -- see LICENSE.
+
+--------------------------------------------------------------------------------
+Reserved content: authored title descriptions
+--------------------------------------------------------------------------------
+
+The `obtainability_reason` field values, and any other hand-written descriptive
+prose, in data/TitlesDB.*.lua are original written content authored and
+curated by Joe Tomkinson and Epithet contributors, Copyright 2026, All Rights
+Reserved. Unlike the surrounding Lua code and the structural/factual fields
+(titleID, q, cat, kind, achievement, achievement_id, availability, faction,
+etc.), which remain licensed under the Apache License, Version 2.0 above,
+this authored prose is expressly excluded from that grant.
+
+You may NOT reproduce, copy, redistribute, or incorporate this text -- in
+whole or in part, verbatim or paraphrased for the same purpose -- into any
+other addon, dataset, mod, website, or publication.
+
+Reading this text live, at runtime, from a separately-installed, independently
+distributed addon, for display within that addon's own interface, is a
+permitted use under the attribution notice above. Copying the text itself
+into another project's own files, source control, or bundled data is not.

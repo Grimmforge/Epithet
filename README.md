@@ -173,3 +173,5 @@ It's great to see people enjoying Epithet as an add-on to the extent that they g
 Apache-2.0 license - see [LICENSE](LICENSE).
 
 If your addon or tool reads Epithet's data or capabilities at runtime (e.g. the `EpithetData` global) to enrich its own UI, please display a visible credit in that UI - see [NOTICE](NOTICE) for specifics. Thanks for playing nice.
+
+The hand-written `obtainability_reason` prose in the title database is authored content and is **not** licensed for reproduction elsewhere - see the "Reserved content" section of [NOTICE](NOTICE).
