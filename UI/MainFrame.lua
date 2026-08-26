@@ -28,6 +28,12 @@ local function CanonicalTitleText(value)
     return text
 end
 
+-- Below this, a canonical title (e.g. "om" from "Om'") is short enough that it
+-- can appear as a substring of unrelated text purely by chance (e.g. inside
+-- "broom"), so loose substring-containment matching is skipped for it. Exact
+-- and canonical-equality matches above are unaffected.
+local FUZZY_SUBSTRING_MIN_LEN = 4
+
 local MainFrame = {}
 ns.MainFrame = MainFrame
 
@@ -721,7 +727,8 @@ function MainFrame:OpenAndSelectTitle(titleText, titleType, titleID)
             score = score + 4
         elseif targetCanonical ~= "" and textCanonical == targetCanonical then
             score = score + 3
-        elseif targetCanonical ~= "" and (
+        elseif targetCanonical ~= "" and
+            #targetCanonical >= FUZZY_SUBSTRING_MIN_LEN and #textCanonical >= FUZZY_SUBSTRING_MIN_LEN and (
             textCanonical:find(targetCanonical, 1, true) or
             targetCanonical:find(textCanonical, 1, true)
         ) then

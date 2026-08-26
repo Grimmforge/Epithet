@@ -143,6 +143,9 @@ L["SOCIAL_FADE_ENABLE"] = "Скрывать индикаторы цели пос
 L["SOCIAL_FADE_DURATION"] = "Задержка исчезновения"
 L["SOCIAL_FADE_DURATION_FMT"] = "%.1f сек. перед исчезновением"
 L["SOCIAL_SPOTTING_NOTIFY"] = "Показывать подтверждения распознавания в чате"
+L["SOCIAL_ACHIEVEMENT_SECTION"] = "Достижения"
+L["SOCIAL_ACHIEVEMENT_LAYER_DESC"] = "Всплывающие окна достижений охватывают как вашу собственную коллекцию званий, так и звания, замеченные у других игроков. Настройте здесь способ уведомления - само распознавание званий включается в разделе ниже."
+L["SOCIAL_ACHIEVEMENT_SPOTTING_DISABLED_NOTE"] = "Распознавание званий отключено, поэтому достижения за распознавание не будут засчитываться. Достижения за вашу собственную коллекцию званий по-прежнему отслеживаются."
 L["SOCIAL_ACHIEVEMENT_NOTIFY"] = "Уведомления о достижениях"
 L["SOCIAL_ACHIEVEMENT_NOTIFY_MODE"] = "Режим уведомлений о достижениях"
 L["SOCIAL_ACHIEVEMENT_NOTIFY_MODE_FULL"] = "Всплывающее окно + звук"
@@ -527,6 +530,7 @@ L["INFO_BUTTON_TOOLTIP"] = "О Epithet"
 -- Language names (shown in the picker, in the active language)
 L["LANGUAGE_ENGLISH"] = "Английский"
 L["LANGUAGE_RUSSIAN"] = "Русский"
+L["LANGUAGE_GERMAN"] = "Немецкий"
 L["LANGUAGE_FRENCH"] = "Французский"
 
 -- Options: language section

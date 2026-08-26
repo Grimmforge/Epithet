@@ -366,6 +366,10 @@ end
 
 function SocialLayer:GetRecordForUnit(unit)
     if not unit or not UnitExists or not UnitExists(unit) then return nil end
+    -- Titles are a player-only concept. Without this, an NPC/critter/pet whose
+    -- name happens to split on whitespace (e.g. "Light-Infused Broom") gets its
+    -- trailing word misread as a suffix title by ParseDisplay below.
+    if not UnitIsPlayer or not UnitIsPlayer(unit) then return nil end
     local displayName = UnitPVPName and UnitPVPName(unit) or nil
     local targetFrameText = nil
     if unit == "target" and TargetFrameName and TargetFrameName.GetText then

@@ -325,18 +325,32 @@ function Options:Init()
     self.scrollContent = scrollContent
     canvas = scrollContent
 
+    -- Two page-style sections stacked on one canvas: Achievements first (its
+    -- notify/anchor controls apply to every achievement, including the
+    -- title-collection ones that don't need spotting enabled), then Title
+    -- Spotting below with its own matching title+description.
     local title = (T and T.Serif and T.Serif(canvas, 20, T.col.goldBright)) or canvas:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", 16, -16)
-    title:SetText(L["SOCIAL_LAYER"] or "Title Spotting")
+    title:SetText(L["SOCIAL_ACHIEVEMENT_SECTION"] or "Achievements")
 
     local desc = (T and T.Sans and T.Sans(canvas, 12, T.col.text)) or canvas:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     desc:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
     desc:SetWidth(520)
     desc:SetJustifyH("LEFT")
-    desc:SetText(L["SOCIAL_LAYER_DESC"] or "Inspecting total strangers is practically a core ability by now. Point it at their titles too: spot what another players have chosen to wear and jump straight in to how it's earned in Epithet.")
+    desc:SetText(L["SOCIAL_ACHIEVEMENT_LAYER_DESC"] or "Achievement pop-ups cover your own title collection as well as titles you've spotted on others. Configure how they notify you here - title spotting itself is switched on in the section below.")
+
+    local spottingTitle = (T and T.Serif and T.Serif(canvas, 20, T.col.goldBright)) or canvas:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+    spottingTitle:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, -30)
+    spottingTitle:SetText(L["SOCIAL_LAYER"] or "Title Spotting")
+
+    local spottingDesc = (T and T.Sans and T.Sans(canvas, 12, T.col.text)) or canvas:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    spottingDesc:SetPoint("TOPLEFT", spottingTitle, "BOTTOMLEFT", 0, -8)
+    spottingDesc:SetWidth(520)
+    spottingDesc:SetJustifyH("LEFT")
+    spottingDesc:SetText(L["SOCIAL_LAYER_DESC"] or "Inspecting total strangers is practically a core ability by now. Point it at their titles too: spot what another players have chosen to wear and jump straight in to how it's earned in Epithet.")
 
     local stateHeading = (T and T.Sans and T.Sans(canvas, 12, T.col.goldDim)) or canvas:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    stateHeading:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, -14)
+    stateHeading:SetPoint("TOPLEFT", spottingDesc, "BOTTOMLEFT", 0, -14)
     stateHeading:SetText(L["SOCIAL_STATE_SECTION"] or "Feature State")
 
     local function GetLayoutOptions()
@@ -763,6 +777,12 @@ function Options:Init()
             if profile then profile.spotNotify = value end
         end)
 
+    local achievementDisabledNote = (T and T.Sans and T.Sans(canvas, 11, T.col.faint)) or canvas:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    achievementDisabledNote:SetJustifyH("LEFT")
+    achievementDisabledNote:SetJustifyV("TOP")
+    achievementDisabledNote:SetWidth(500)
+    achievementDisabledNote:SetText(L["SOCIAL_ACHIEVEMENT_SPOTTING_DISABLED_NOTE"] or "Title spotting is off, so spotting achievements can't progress. Achievements based on your own title collection are still tracked.")
+
     local achievementNotifyHeading = (T and T.Sans and T.Sans(canvas, 12, T.col.text)) or canvas:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     achievementNotifyHeading:SetText(L["SOCIAL_ACHIEVEMENT_NOTIFY_MODE"] or "Achievement notification mode")
 
@@ -831,6 +851,18 @@ function Options:Init()
     achievementAnchorNote:SetJustifyH("LEFT")
     achievementAnchorNote:SetJustifyV("TOP")
     achievementAnchorNote:SetWidth(500)
+
+    -- Hairline marking the boundary between the "Achievements" page section
+    -- above and the "Title Spotting" page section below, so the two read as
+    -- independent groups rather than one continuous list.
+    local achievementSectionDivider = canvas:CreateTexture(nil, "ARTWORK")
+    achievementSectionDivider:SetHeight(1)
+    achievementSectionDivider:SetWidth(520)
+    if T and T.col and T.col.line then
+        achievementSectionDivider:SetColorTexture(T.col.line.r, T.col.line.g, T.col.line.b, 0.7)
+    else
+        achievementSectionDivider:SetColorTexture(0.70, 0.58, 0.31, 0.6)
+    end
 
     local function AchievementAnchorModeLabel(mode)
         if mode == "alertframe" then
@@ -950,8 +982,38 @@ function Options:Init()
     resetTarget.text = resetText
 
     -- Keep section spacing resilient to copy length and preserve visual grouping.
+    achievementNotifyHeading:ClearAllPoints()
+    achievementNotifyHeading:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 4, -14)
+
+    achievementNotifyDrop:ClearAllPoints()
+    achievementNotifyDrop:SetPoint("TOPLEFT", achievementNotifyHeading, "BOTTOMLEFT", -20, -2)
+
+    achievementAnchorHeading:ClearAllPoints()
+    achievementAnchorHeading:SetPoint("TOPLEFT", achievementNotifyDrop, "BOTTOMLEFT", 20, -8)
+
+    achievementAnchorDrop:ClearAllPoints()
+    achievementAnchorDrop:SetPoint("TOPLEFT", achievementAnchorHeading, "BOTTOMLEFT", -20, -2)
+
+    achievementAnchorNote:ClearAllPoints()
+    achievementAnchorNote:SetPoint("TOPLEFT", achievementAnchorDrop, "BOTTOMLEFT", 20, -2)
+
+    achievementSectionDivider:ClearAllPoints()
+    achievementSectionDivider:SetPoint("TOPLEFT", achievementAnchorNote, "BOTTOMLEFT", -4, -18)
+
+    spottingTitle:ClearAllPoints()
+    spottingTitle:SetPoint("TOPLEFT", achievementSectionDivider, "BOTTOMLEFT", 4, -16)
+
+    stateHeading:ClearAllPoints()
+    stateHeading:SetPoint("TOPLEFT", spottingDesc, "BOTTOMLEFT", 0, -14)
+
     enabled:ClearAllPoints()
     enabled:SetPoint("TOPLEFT", stateHeading, "BOTTOMLEFT", 0, -6)
+
+    -- Mutually exclusive with the nameplate chain below: whichever the enable
+    -- checkbox hides/shows, only one of these two is ever visible at a time, so
+    -- both can safely anchor to the same spot without leaving a gap.
+    achievementDisabledNote:ClearAllPoints()
+    achievementDisabledNote:SetPoint("TOPLEFT", enabled, "BOTTOMLEFT", 4, -14)
 
     layoutHeading:ClearAllPoints()
     layoutHeading:SetPoint("TOPLEFT", enabled, "BOTTOMLEFT", 0, -22)
@@ -990,23 +1052,8 @@ function Options:Init()
     spotNotify:ClearAllPoints()
     spotNotify:SetPoint("TOPLEFT", hideInGroup, "BOTTOMLEFT", 0, -8)
 
-    achievementNotifyHeading:ClearAllPoints()
-    achievementNotifyHeading:SetPoint("TOPLEFT", spotNotify, "BOTTOMLEFT", 4, -10)
-
-    achievementNotifyDrop:ClearAllPoints()
-    achievementNotifyDrop:SetPoint("TOPLEFT", achievementNotifyHeading, "BOTTOMLEFT", -20, -2)
-
-    achievementAnchorHeading:ClearAllPoints()
-    achievementAnchorHeading:SetPoint("TOPLEFT", achievementNotifyDrop, "BOTTOMLEFT", 20, -8)
-
-    achievementAnchorDrop:ClearAllPoints()
-    achievementAnchorDrop:SetPoint("TOPLEFT", achievementAnchorHeading, "BOTTOMLEFT", -20, -2)
-
-    achievementAnchorNote:ClearAllPoints()
-    achievementAnchorNote:SetPoint("TOPLEFT", achievementAnchorDrop, "BOTTOMLEFT", 20, -2)
-
     positionHeading:ClearAllPoints()
-    positionHeading:SetPoint("TOPLEFT", achievementAnchorNote, "BOTTOMLEFT", 0, -12)
+    positionHeading:SetPoint("TOPLEFT", spotNotify, "BOTTOMLEFT", 0, -14)
 
     unlockTarget:ClearAllPoints()
     unlockTarget:SetPoint("TOPLEFT", positionHeading, "BOTTOMLEFT", 0, -6)
@@ -1051,11 +1098,6 @@ function Options:Init()
         hideInCombat,
         hideInGroup,
         spotNotify,
-        achievementNotifyHeading,
-        achievementNotifyDrop,
-        achievementAnchorHeading,
-        achievementAnchorDrop,
-        achievementAnchorNote,
         positionHeading,
         unlockTarget,
         resetTarget,
@@ -1111,8 +1153,16 @@ function Options:Init()
             desc:SetWidth(bodyWidth)
         end
 
+        if spottingDesc and spottingDesc.SetWidth then
+            spottingDesc:SetWidth(bodyWidth)
+        end
+
         if previewFrame and previewFrame.SetWidth then
             previewFrame:SetWidth(bodyWidth)
+        end
+
+        if achievementSectionDivider and achievementSectionDivider.SetWidth then
+            achievementSectionDivider:SetWidth(bodyWidth)
         end
     end
 
@@ -1158,8 +1208,9 @@ function Options:Init()
         spotNotify:Refresh()
         RefreshAchievementNotifyDropdown()
         RefreshAchievementAnchorDropdown()
+        achievementDisabledNote:SetShown(not socialEnabled)
         unlockTarget:Refresh()
-        UpdateScrollBounds((socialEnabled and resetTarget) or enabled)
+        UpdateScrollBounds((socialEnabled and resetTarget) or achievementDisabledNote)
     end
 
     self.Refresh = function(self_)

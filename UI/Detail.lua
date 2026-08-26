@@ -957,7 +957,7 @@ function Detail:RefreshSourceCard(record)
 
     -- Obtainability reason (shown below the banner when present)
     local reason = record.obtainability_reason
-    if reason and reason ~= "" and (obt == "no" or obt == "feat") then
+    if reason and reason ~= "" then
         self.obtainReason:SetText(reason)
         self.obtainReason:Show()
     else
