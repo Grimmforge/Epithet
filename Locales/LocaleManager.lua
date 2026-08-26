@@ -46,6 +46,7 @@ local LOCALE_NAMES = {
 local LANGUAGE_NAME_KEYS = {
     enGB = "LANGUAGE_ENGLISH",
     ruRU = "LANGUAGE_RUSSIAN",
+    deDE = "LANGUAGE_GERMAN",
     frFR = "LANGUAGE_FRENCH",
 }
 

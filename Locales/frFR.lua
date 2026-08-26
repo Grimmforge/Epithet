@@ -146,6 +146,9 @@ L["SOCIAL_FADE_ENABLE"] = "Faire disparaître la barre d'infos après un délai"
 L["SOCIAL_FADE_DURATION"] = "Délai avant le fondu"
 L["SOCIAL_FADE_DURATION_FMT"] = "%.1f secondes avant le fondu"
 L["SOCIAL_SPOTTING_NOTIFY"] = "Afficher les confirmations de repérage dans la fenêtre de discussion"
+L["SOCIAL_ACHIEVEMENT_SECTION"] = "Hauts faits"
+L["SOCIAL_ACHIEVEMENT_LAYER_DESC"] = "Les fenêtres de hauts faits couvrent aussi bien votre propre collection de titres que les titres repérés chez d'autres joueurs. Configurez ici la façon dont elles vous notifient : le repérage de titres se règle dans la section ci-dessous."
+L["SOCIAL_ACHIEVEMENT_SPOTTING_DISABLED_NOTE"] = "Le repérage de titres est désactivé, les hauts faits de repérage ne peuvent donc pas progresser. Les hauts faits basés sur votre propre collection de titres restent suivis."
 L["SOCIAL_ACHIEVEMENT_NOTIFY"] = "Notifications de hauts faits"
 L["SOCIAL_ACHIEVEMENT_NOTIFY_MODE"] = "Mode de notification des hauts faits"
 L["SOCIAL_ACHIEVEMENT_NOTIFY_MODE_FULL"] = "Fenêtre + son"
@@ -534,6 +537,7 @@ L["INFO_BUTTON_TOOLTIP"] = "À propos d'Epithet"
 -- Language names (shown in the picker, in the active language)
 L["LANGUAGE_ENGLISH"] = "Anglais"
 L["LANGUAGE_RUSSIAN"] = "Russe"
+L["LANGUAGE_GERMAN"] = "Allemand"
 L["LANGUAGE_FRENCH"] = "Français"
 
 -- Options: language section

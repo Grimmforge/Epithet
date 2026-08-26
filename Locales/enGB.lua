@@ -150,6 +150,9 @@ L["SOCIAL_FADE_ENABLE"] = "Fade target nameplates after a delay"
 L["SOCIAL_FADE_DURATION"] = "Fade delay"
 L["SOCIAL_FADE_DURATION_FMT"] = "%.1f seconds before fade"
 L["SOCIAL_SPOTTING_NOTIFY"] = "Show spotting confirmations in chat"
+L["SOCIAL_ACHIEVEMENT_SECTION"] = "Achievements"
+L["SOCIAL_ACHIEVEMENT_LAYER_DESC"] = "Achievement pop-ups cover your own title collection as well as titles you've spotted on others. Configure how they notify you here - title spotting itself is switched on in the section below."
+L["SOCIAL_ACHIEVEMENT_SPOTTING_DISABLED_NOTE"] = "Title spotting is off, so spotting achievements can't progress. Achievements based on your own title collection are still tracked."
 L["SOCIAL_ACHIEVEMENT_NOTIFY"] = "Achievement notifications"
 L["SOCIAL_ACHIEVEMENT_NOTIFY_MODE"] = "Achievement notification mode"
 L["SOCIAL_ACHIEVEMENT_NOTIFY_MODE_FULL"] = "Popup + sound"
@@ -535,6 +538,7 @@ L["INFO_BUTTON_TOOLTIP"] = "About Epithet"
 -- Language names (shown in the picker, in the active language)
 L["LANGUAGE_ENGLISH"] = "English"
 L["LANGUAGE_RUSSIAN"] = "Russian"
+L["LANGUAGE_GERMAN"] = "German"
 L["LANGUAGE_FRENCH"] = "French"
 
 -- Options: language section

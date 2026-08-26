@@ -296,25 +296,46 @@ function TitleData:Scan(force)
                 -- resolves on an English client) for any DB snapshot that
                 -- predates the titleID index.
                 local key = strlower(text)
-                local static = (ns.EpithetData and ns.EpithetData.titlesByID and ns.EpithetData.titlesByID[titleID])
-                    or (ns.EpithetData and ns.EpithetData.titles and ns.EpithetData.titles[key])
+                local staticByID = (ns.EpithetData and ns.EpithetData.titlesByID and ns.EpithetData.titlesByID[titleID]) or nil
+                local staticByText = (ns.EpithetData and ns.EpithetData.titles and ns.EpithetData.titles[key]) or nil
+
+                -- Some client builds expose alias/shifted live IDs for certain
+                -- titles. When an ID-hit resolves to a different title text than
+                -- the live title we just read, prefer the text-key match so type,
+                -- source, and obtainability metadata stay attached to the right
+                -- title.
+                local static = staticByID or staticByText
+                local staticFromText = false
+                if staticByID and staticByText and staticByID.text and strlower(staticByID.text) ~= key then
+                    static = staticByText
+                    staticFromText = true
+                elseif not staticByID and staticByText then
+                    static = staticByText
+                    staticFromText = true
+                end
+
+                -- Treat TitlesDB as authoritative for affix when a static row is
+                -- available. Live classification remains the fallback only when
+                -- this title has no catalog metadata.
+                local resolvedType = (static and static.type) or titleType
 
                 -- Sparse localised prose for this title (nil for most), each
                 -- field falling back to the enGB base when the overlay omits it.
-                local over = overlayByID and overlayByID[titleID] or nil
+                local overlayID = titleID
+                if staticFromText and static and static.titleID then
+                    overlayID = static.titleID
+                end
+                local over = overlayByID and overlayByID[overlayID] or nil
 
                 local record = {
                     titleID   = titleID,
                     text      = text,
                     raw       = raw, -- unclassified GetTitleName() string, reused by TitleIndex to avoid a second API pass
-                    -- Prefer the live classification: it comes from THIS client's
-                    -- own GetTitleName string (trailing space = prefix), so it is
-                    -- locale-independent and correct for the exact ID in hand. The
-                    -- DB is keyed by title text, so where one text spans two IDs of
-                    -- differing affix ("the Forbidden" is 495 suffix / 533 prefix)
-                    -- its stored type is right for only one of them. DB is the
-                    -- fallback for anything the client didn't classify.
-                    type      = titleType or (static and static.type),
+                    -- Prefer catalog type when available so suffix/prefix rendering
+                    -- is stable across client formatting differences in raw title
+                    -- strings. Live classification remains the fallback for titles
+                    -- with no static DB row.
+                    type      = resolvedType or (static and static.type),
                     earned    = earned,
                     isActive  = isActive,
                     -- Bundled fields (may be nil)
