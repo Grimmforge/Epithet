@@ -24,6 +24,7 @@ Locales\enGB.lua
 Locales\deDE.lua
 Locales\ruRU.lua
 Locales\frFR.lua
+Locales\zhCN.lua
 
 # Bundled Data
 # enGB is the canonical base; localised overlays load AFTER it and fall back to
