@@ -98,6 +98,7 @@ Layouts:RegisterLayout("classic", {
             frame.scrollBackdrop:Hide()
         end
 
+        -- Classic mode reuses the shared frame and explicitly hides portrait-card ornament layers.
         if frame.bannerFill then frame.bannerFill:Hide() end
         if frame.bannerTabLeft then frame.bannerTabLeft:Hide() end
         if frame.bannerTabRight then frame.bannerTabRight:Hide() end
@@ -262,6 +263,7 @@ Layouts:RegisterLayout("classic", {
         local bottomInset = m.portraitBottomInset or m.portraitInsetY or 3
         local portraitW = math.max(m.portraitMinWidth, (frame:GetHeight() or m.frameHeight) - (topInset + bottomInset))
 
+        -- Width = left column + center text column + portrait column + fixed tail padding, clamped.
         local width = math.max(m.minWidth, math.min(m.maxWidth,
             floor(m.leftColWidth + m.centerGapX + textColWidth + m.centerGapX + portraitW + m.widthTailPad)
         ))

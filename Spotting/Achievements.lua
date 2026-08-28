@@ -2584,7 +2584,20 @@ function Achievements:GetDisplayEntries()
         end
     end
 
+    -- Earned achievements bubble to the top (most recently earned first);
+    -- unearned ones keep the general-before-secret grouping below them.
     table.sort(entries, function(a, b)
+        if a.earned ~= b.earned then
+            return a.earned
+        end
+        if a.earned then
+            local aAt = a.earnedAt or 0
+            local bAt = b.earnedAt or 0
+            if aAt ~= bAt then
+                return aAt > bAt
+            end
+            return a.id < b.id
+        end
         if a.secret ~= b.secret then
             return not a.secret
         end

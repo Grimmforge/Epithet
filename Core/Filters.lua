@@ -212,6 +212,7 @@ local function SortByCategory(a, b)
 end
 
 function Filters:Sort(records, mode)
+    -- Sort in place and return the same table reference for caller chaining.
     if mode == "expansion" then
         sort(records, SortByExpansion)
     elseif mode == "alphabetical" then
@@ -238,6 +239,7 @@ function Filters:ComputeCounts(records)
         exp      = {},
         cat      = {},
         kind     = {},
+        -- Neutral/faction-agnostic titles live in "Both" (record.faction == nil).
         faction  = { Alliance = 0, Horde = 0, Both = 0 },
         earned   = 0,
         unearned = 0,

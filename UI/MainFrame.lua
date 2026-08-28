@@ -91,8 +91,8 @@ function MainFrame:Init()
     if frame.TitleBar and frame.TitleBar.SettingsButton then
         local settingsBtn = frame.TitleBar.SettingsButton
         settingsBtn:SetScript("OnClick", function()
-            if ns.Settings and ns.Settings.OpenSpottingSettings then
-                ns.Settings:OpenSpottingSettings()
+            if ns.Settings and ns.Settings.OpenMainSettings then
+                ns.Settings:OpenMainSettings()
             end
         end)
         settingsBtn:HookScript("OnEnter", function(btn)

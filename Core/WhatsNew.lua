@@ -350,6 +350,7 @@ function WhatsNew:EnsureState()
 end
 
 function WhatsNew:GetStateForVersion(version, create)
+    -- create=true lazily bootstraps per-version state for older saved DB snapshots.
     local state = self:EnsureState()
     local byVersion = state.byVersion
     local item = byVersion[version]
@@ -634,7 +635,13 @@ function WhatsNew:Show(version)
 end
 
 function WhatsNew:ShowForCurrentVersionIfNeeded()
+    -- Startup display is deferred and guarded so only one popup can be scheduled per session.
     if self.shownThisSession or self.pendingShow then
+        return
+    end
+
+    local profile = ns.Epithet and ns.Epithet.db and ns.Epithet.db.profile
+    if profile and profile.showWhatsNewOnStartup == false then
         return
     end
 

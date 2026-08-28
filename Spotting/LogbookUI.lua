@@ -1835,6 +1835,8 @@ function LogbookUI:CreatePanel(mainFrame)
     gatedText:SetPoint("RIGHT", gated, "RIGHT", -70, 0)
     gatedText:SetJustifyH("CENTER")
     gatedText:SetText(L and L["SPOTTING_LOG_GATED"] or "Title spotting is off. Sightings are not being recorded.")
+    local gatedWarnCol = (T and T.col and T.col.warn) or { r = 0.851, g = 0.541, b = 0.322 }
+    gatedText:SetTextColor(gatedWarnCol.r, gatedWarnCol.g, gatedWarnCol.b)
 
     local settingsButton = CreateFrame("Button", nil, gated)
     settingsButton:SetSize(170, 24)
@@ -2117,9 +2119,7 @@ function LogbookUI:EnsureAchievementDetailOverlay()
 
     -- Small gold corner ornament, matching the achievement-earned popup and
     -- the main window's own chrome. Anchored to the heading's LEFT/RIGHT
-    -- points (which are always vertically centred on the frame) rather than
-    -- an independently guessed offset, so it can't drift out of line with
-    -- the title text again.
+    -- points (which are always vertically centred on the frame) 
     if T and T.Diamond then
         local ornament = T.Diamond(card, 8, goldCol)
         ornament:SetPoint("RIGHT", heading, "LEFT", -10, 0)

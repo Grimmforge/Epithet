@@ -498,6 +498,7 @@ Layouts:RegisterLayout("portrait", {
                     self:ApplyPortraitTexture(frame.portrait, frame.portraitUnit, "portrait", frame.portraitShell)
                 end
             end
+            -- Keep the ring visible in 2D mode as decorative framing, not just 3D crop support.
             LayoutPortraitRing(frame, m, true)
         end
     end,
@@ -523,6 +524,7 @@ Layouts:RegisterLayout("portrait", {
 
         frame.titleText:SetWordWrap(true)
 
+        -- Force portrait metrics during measurement so wrapping stays deterministic.
         self:ApplyLayoutToFrame(frame, { layout = "portrait" })
         self:LayoutTargetPortrait(frame)
     end,

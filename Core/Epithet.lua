@@ -35,10 +35,12 @@ local DB_DEFAULTS = {
         favourites = {},          -- set keyed by lowercase title text: { ["the explorer"] = true }
         sort = "collectedFirst",  -- "collectedFirst" | "expansion" | "alphabetical" | "quality" | "category"
         obtainableOnly = false,   -- toggle: show earned % against obtainable pool only
+        showWhatsNewOnStartup = true, -- toggle: auto-show the What's New popup on first login after an update
         social = {
             enabled = true,
             layout = "portrait",
             animatedPortrait = true,
+            showSelfTargetNameplate = false,
             fadeNameplates = false,
             fadeDuration = 4.0,
             previewFunnyTitle = false,
@@ -234,6 +236,8 @@ end
 ns.BuildTitleDBAuditPayload = BuildTitleDBAuditPayload
 
 local function RunDebugModalCommand(commandID)
+    -- Execute one debug action and normalize its result for modal rendering.
+    -- Returns: true, { title, note, payload } on success; false, "error" on failure.
     local command = commandID or "title_parse_debug"
 
     if command == "title_parse_debug" then
@@ -654,6 +658,7 @@ function Epithet:OnInitialize()
     f.cat = f.cat or {}
     f.kind = f.kind or {}
     f.faction = f.faction or {}
+    self.db.profile.showWhatsNewOnStartup = (self.db.profile.showWhatsNewOnStartup ~= false)
     local s = self.db.profile.social or {}
     s.enabled = (s.enabled ~= false)
     s.targetAnchorPoint = nil -- legacy field removed; target is always anchored below target frame.
@@ -703,6 +708,7 @@ function Epithet:OnInitialize()
         s.hideInCombat = (s.hideInCombat == true)
     end
     s.hideInGroup = (s.hideInGroup == true)
+    -- Never persist drag-unlocked mode across sessions; relock on load to avoid accidental moves.
     s.targetUnlock = false
     self.db.profile.social = s
 

@@ -68,8 +68,8 @@ Epithet/
 ├── WhatsNew/
 │   ├── Content.lua          # What's New content registry
 │   └── Versions/
-│       ├── v1_2_0.lua       # Content for a single version's popup
-│       └── v1_2_0/          # That version's own dedicated art (banners, screenshots)
+│       ├── v1_3_0.lua       # Content for a single version's popup
+│       └── v1_3_1.lua       # A version can optionally add its own vX_Y_Z/ art folder (banners, screenshots)
 ├── data/
 │   ├── TitlesDB.enGB.lua    # Bundled static title database (enGB base / canonical)
 │   ├── TitlesDB.ruRU.lua.example  # Template for a localised prose overlay

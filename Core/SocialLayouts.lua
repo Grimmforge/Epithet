@@ -48,6 +48,7 @@ end
 function Layouts:GetLayoutOptions(L)
     local options = {}
 
+    -- Keep portrait first for stable picker ordering regardless of registration order.
     if self.registry["portrait"] then
         local portraitDef = self.registry["portrait"]
         local portraitLabel = (portraitDef.labelKey and L and L[portraitDef.labelKey]) or portraitDef.label or "portrait"
@@ -207,6 +208,7 @@ function Layouts:SetTargetPillContent(frame, titleText, quality, rarityText)
         frame.rarityText:SetTextColor(qCol.text.r, qCol.text.g, qCol.text.b)
     end
 
+    -- Reflow width/height after content updates so text and metrics stay aligned.
     if ns.SocialLayer and ns.SocialLayer.SizeTargetPill then
         ns.SocialLayer:SizeTargetPill(frame)
     end
