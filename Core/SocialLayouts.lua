@@ -16,6 +16,10 @@ local CROWN_ICON = "Interface\\AddOns\\Epithet\\icons\\logo\\epithet-crown-mark-
 local CROWN_Y_OFFSET = -7
 local CROWN_SIZE_MULTIPLIER = 1.2
 
+local floor = math.floor
+local ceil = math.ceil
+local max = math.max
+
 local RARITY_GEMS = ns.Theme and ns.Theme.RarityGems32
 
 function Layouts:RegisterLayout(key, definition)
@@ -107,6 +111,99 @@ function Layouts:GetRarityGem(quality)
     return RARITY_GEMS[q]
 end
 
+-- Resize a font string in place, keeping the font file and flags it was built
+-- with. Every layout has to set its own title size on each pass: the font string
+-- is shared between layouts, so a size left behind by the previous one sticks.
+function Layouts:SetFontSize(fontString, size)
+    if not (fontString and fontString.GetFont and fontString.SetFont) then return end
+    size = tonumber(size)
+    if not size then return end
+
+    local path, current, flags = fontString:GetFont()
+    if not path or current == size then return end
+    fontString:SetFont(path, size, flags)
+end
+
+-- Measure how a piece of text lays out, before anything visible is resized.
+--
+-- The visible title/rarity font strings are anchored on both sides (SetAllPoints
+-- on their row), and a region anchored left AND right ignores SetWidth — so they
+-- cannot answer "how tall would you be at width N?" without first being torn off
+-- their anchors. This probe is anchored by a single point, so constraining its
+-- width really does wrap it and GetStringHeight reports the wrapped height.
+--
+-- Returns naturalWidth (the unwrapped single-line width), lineHeight, and the
+-- number of lines the text needs at wrapWidth (capped at maxLines when given).
+-- Pass wrapWidth = 0/nil to only ask for the natural width.
+function Layouts:MeasureText(frame, source, text, wrapWidth, maxLines)
+    if not (frame and frame.CreateFontString and source and source.GetFont) then
+        return 0, 0, 1
+    end
+
+    local path, size, flags = source:GetFont()
+    if not path then return 0, 0, 1 end
+
+    local probe = frame.__epithetTextProbe
+    if not probe then
+        probe = frame:CreateFontString(nil, "BACKGROUND")
+        probe:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
+        -- Left shown so the client definitely lays it out, but fully transparent
+        -- and emptied after every measurement, so it draws nothing either way.
+        probe:SetAlpha(0)
+        frame.__epithetTextProbe = probe
+    end
+
+    probe:SetFont(path, size or 12, flags)
+    local spacing = (source.GetSpacing and source:GetSpacing()) or 0
+    if probe.SetSpacing then probe:SetSpacing(spacing) end
+
+    probe:SetWordWrap(false)
+    probe:SetWidth(0)
+    probe:SetText(text or "")
+
+    local naturalWidth = probe:GetStringWidth() or 0
+    local lineHeight = probe:GetStringHeight() or 0
+    if lineHeight <= 0 then
+        lineHeight = (size or 12) + 2
+    end
+
+    local lines = 1
+    wrapWidth = tonumber(wrapWidth) or 0
+    if wrapWidth > 0 and naturalWidth > wrapWidth then
+        probe:SetWordWrap(true)
+        probe:SetWidth(wrapWidth)
+
+        -- wrapped = n * lineHeight + (n - 1) * spacing, solved for n.
+        local wrapped = probe:GetStringHeight() or lineHeight
+        lines = floor(((wrapped + spacing) / (lineHeight + spacing)) + 0.5)
+
+        -- Words never break, so dividing the natural width by the wrap width can
+        -- only ever undercount lines. Use it as a floor in case GetStringHeight
+        -- reports a stale single line before the string has been laid out once.
+        local estimate = ceil(naturalWidth / wrapWidth)
+        if lines < estimate then lines = estimate end
+        if lines < 1 then lines = 1 end
+    end
+
+    maxLines = tonumber(maxLines)
+    if maxLines and maxLines >= 1 and lines > maxLines then
+        lines = maxLines
+    end
+
+    -- Don't leave the measured string parked on a live region.
+    probe:SetText("")
+
+    return naturalWidth, lineHeight, lines
+end
+
+-- Height of a text block of `lines` lines, for a font measured at `lineHeight`.
+function Layouts:TextBlockHeight(lines, lineHeight, spacing)
+    lines = max(1, tonumber(lines) or 1)
+    lineHeight = tonumber(lineHeight) or 0
+    spacing = tonumber(spacing) or 0
+    return ceil((lines * lineHeight) + ((lines - 1) * spacing))
+end
+
 function Layouts:MakeHintPill(parent)
     local frame = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     frame:SetBackdrop({
@@ -155,11 +252,28 @@ function Layouts:ApplyPortraitTexture(texture, unit, style, shell)
     texture:SetTexCoord(0.15, 0.85, 0.15, 0.85)
 end
 
+-- Drop the text-driven sizes SizePill left on a frame. Layouts derive their own
+-- geometry from these, so carrying one layout's numbers into another would size
+-- the plate from measurements taken with a different font and banner.
+function Layouts:ClearDynamicLayout(frame)
+    if not frame then return end
+    frame.dynamicTitleLines = nil
+    frame.dynamicTitleHeight = nil
+    frame.dynamicFrameWidth = nil
+    frame.dynamicFrameHeight = nil
+    frame.dynamicBannerWidth = nil
+    frame.dynamicBannerHeight = nil
+end
+
 function Layouts:ApplyLayoutToFrame(frame, profile)
     if not frame then return end
     local def, key = self:GetLayoutDefinition(profile)
     local m = def and def.metrics
     if not m then return end
+
+    if frame.layoutKey ~= key then
+        self:ClearDynamicLayout(frame)
+    end
 
     frame.layoutKey = key
     frame.layoutMetrics = m

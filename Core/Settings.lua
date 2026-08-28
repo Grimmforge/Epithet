@@ -611,6 +611,11 @@ function Options:BuildTitleSpottingPanel(parentCategory)
     self.titleSpottingScrollFrame = scrollFrame
     self.titleSpottingScrollContent = canvas
 
+    -- Defined further down, once the controls it measures exist. Forward-declared
+    -- because the preview (built well before it) resizes itself when the sample
+    -- title changes, which moves everything below it.
+    local UpdateScrollBounds
+
     local title = (T and T.Serif and T.Serif(canvas, 20, T.col.goldBright)) or canvas:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", 16, -16)
     title:SetText(L["SOCIAL_LAYER"] or "Title Spotting")
@@ -813,8 +818,9 @@ function Options:BuildTitleSpottingPanel(parentCategory)
     previewPlate.rarityRow:SetHeight(18)
 
     local previewTitle = (T and T.Sans and T.Sans(previewPlate.titleRow, 11, T.col.goldBright)) or previewPlate.titleRow:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    -- Height, wrapping and max lines are the layout's to set: the row this fills
+    -- is sized from the measured title, so pinning either here would fight it.
     previewTitle:SetAllPoints(previewPlate.titleRow)
-    previewTitle:SetHeight(20)
     previewTitle:SetJustifyH("LEFT")
     previewTitle:SetJustifyV("MIDDLE")
     previewTitle:SetWordWrap(false)
@@ -823,7 +829,6 @@ function Options:BuildTitleSpottingPanel(parentCategory)
 
     local previewRarity = (T and T.Sans and T.Sans(previewPlate.rarityRow, 10, T.col.muted)) or previewPlate.rarityRow:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     previewRarity:SetAllPoints(previewPlate.rarityRow)
-    previewRarity:SetHeight(18)
     previewRarity:SetJustifyH("LEFT")
     previewRarity:SetJustifyV("MIDDLE")
     previewRarity:SetWordWrap(false)
@@ -874,16 +879,12 @@ function Options:BuildTitleSpottingPanel(parentCategory)
         end
 
         local m = previewPlate.layoutMetrics or style.metrics
+        -- The plate now sizes itself to its title, so the box has to follow it.
         previewFrame:SetHeight(math.max(116, (previewPlate:GetHeight() or (m and m.frameHeight) or 58) + 56))
 
+        -- Crown size and placement come from the layout's own LayoutPortrait pass
+        -- (run by SizeTargetPill above); only the artwork is the preview's to set.
         if previewPlate.crownFrame and m and m.layoutStyle ~= "portrait" then
-            local topInset = m.portraitTopInset or m.portraitInsetY or 3
-            local bottomInset = m.portraitBottomInset or m.portraitInsetY or 3
-            local portraitW = math.max(m.portraitMinWidth or 20, (previewPlate:GetHeight() or m.frameHeight or 58) - (topInset + bottomInset))
-            local crownSize = math.max(m.crownMinSize or 24, math.floor((portraitW * (m.crownBaseScale or 0.65) * style.crownMultiplier) + 0.5))
-            previewPlate.crownFrame:SetSize(crownSize, crownSize)
-            previewPlate.crownFrame:ClearAllPoints()
-            previewPlate.crownFrame:SetPoint("BOTTOM", previewPlate.portraitShell, "TOP", 0, style.crownOffset)
             previewPlate.crown:SetTexture(style.crownIcon)
         end
 
@@ -916,6 +917,8 @@ function Options:BuildTitleSpottingPanel(parentCategory)
             local profile = GetProfile()
             if profile then profile.previewFunnyTitle = value end
             RefreshLayoutPreview()
+            -- The long sample makes the preview taller, so everything under it moves.
+            if UpdateScrollBounds then UpdateScrollBounds(nil) end
         end)
     previewFunnyToggle:SetPoint("TOPLEFT", previewFrame, "BOTTOMLEFT", 0, -12)
 
@@ -1282,7 +1285,7 @@ function Options:BuildTitleSpottingPanel(parentCategory)
     -- Remember the current bottom control for later scroll-bound recalculations.
     local scrollBottomControl
 
-    local function UpdateScrollBounds(bottomControl)
+    function UpdateScrollBounds(bottomControl)
         scrollBottomControl = bottomControl or scrollBottomControl
         bottomControl = scrollBottomControl
 
