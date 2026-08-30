@@ -1099,13 +1099,61 @@ end
 function Detail:OnSourceLinkClick()
     local record = ns.MainFrame:GetDetailRecord()
     if not record then return end
-    if not record.achievement_id then return end
-    if C_AchievementInfo and C_AchievementInfo.IsValidAchievement and not C_AchievementInfo.IsValidAchievement(record.achievement_id) then return end
+    local achievementID = tonumber(record.achievement_id)
+    if not achievementID then return end
     if not AchievementFrame then
-        if UIParentLoadAddOn then UIParentLoadAddOn("Blizzard_AchievementUI") end
+        if UIParentLoadAddOn then
+            UIParentLoadAddOn("Blizzard_AchievementUI")
+        elseif C_AddOns and C_AddOns.LoadAddOn then
+            C_AddOns.LoadAddOn("Blizzard_AchievementUI")
+        end
     end
+
+    local opened = false
+
     if OpenAchievementFrameToAchievement then
-        OpenAchievementFrameToAchievement(record.achievement_id)
+        OpenAchievementFrameToAchievement(achievementID)
+        opened = true
+    else
+        if AchievementFrame then
+            if not AchievementFrame:IsShown() then
+                if ShowUIPanel then
+                    ShowUIPanel(AchievementFrame)
+                else
+                    AchievementFrame:Show()
+                end
+            end
+            opened = AchievementFrame:IsShown()
+        elseif ToggleAchievementFrame then
+            -- Last-resort fallback for clients where explicit show APIs are absent.
+            -- Guarding against IsShown avoids the open/close toggle behaviour.
+            ToggleAchievementFrame()
+            opened = true
+        end
+
+        -- Some clients expose explicit selection APIs but not
+        -- OpenAchievementFrameToAchievement.
+        if AchievementFrame_SelectAchievement then
+            AchievementFrame_SelectAchievement(achievementID)
+        elseif AchievementFrame and AchievementFrame.SelectAchievement then
+            AchievementFrame:SelectAchievement(achievementID)
+        end
+    end
+
+    -- Blizzard's AchievementFrame is usually "MEDIUM", while EpithetMainFrame is
+    -- "HIGH" (see UI/MainFrame.xml). Lift the achievement UI above ours while it
+    -- is shown, then restore its original strata on hide.
+    if opened and AchievementFrame then
+        if not AchievementFrame.epithetOriginalStrata then
+            AchievementFrame.epithetOriginalStrata = AchievementFrame:GetFrameStrata() or "MEDIUM"
+        end
+        AchievementFrame:SetFrameStrata("DIALOG")
+        if not AchievementFrame.epithetStrataHooked then
+            AchievementFrame.epithetStrataHooked = true
+            AchievementFrame:HookScript("OnHide", function(self_)
+                self_:SetFrameStrata(self_.epithetOriginalStrata or "MEDIUM")
+            end)
+        end
     end
 end
 

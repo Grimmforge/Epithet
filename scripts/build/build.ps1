@@ -16,8 +16,8 @@ $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $tocFile = Join-Path $root "Epithet.toc"
 
 # Interface versions
-$INTERFACE_LIVE = "120007"
-$INTERFACE_PTR  = "120100"
+$INTERFACE_LIVE = "120100"   # 12.1.0, live since 2026-08-11
+$INTERFACE_PTR  = "120105"   # 12.1.5 PTR
 
 # --- Version bump ---
 if ($Bump) {
@@ -138,5 +138,5 @@ Get-ChildItem $releaseAddonDir -Recurse | ForEach-Object {
 }
 Write-Host ""
 Write-Host "Ready to upload to CurseForge:" -ForegroundColor Green
-Write-Host "  dist/Epithet-$version-release.zip  -> The War Within (live)" -ForegroundColor White
+Write-Host "  dist/Epithet-$version-release.zip  -> Midnight (live)" -ForegroundColor White
 Write-Host "  dist/Epithet-$version-ptr.zip      -> PTR/Beta" -ForegroundColor White

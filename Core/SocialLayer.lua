@@ -13,6 +13,7 @@ local UnitFullName = UnitFullName
 local UnitGUID = UnitGUID
 local UnitExists = UnitExists
 local UnitIsPlayer = UnitIsPlayer
+local UnitIsUnit = UnitIsUnit
 local CreateFrame = CreateFrame
 local GetCursorPosition = GetCursorPosition
 local GetTime = GetTime
@@ -366,6 +367,12 @@ end
 
 function SocialLayer:GetRecordForUnit(unit)
     if not unit or not UnitExists or not UnitExists(unit) then return nil end
+    if UnitIsUnit and UnitIsUnit(unit, "player") then
+        local profile = GetProfile()
+        if not (profile and profile.showSelfTargetNameplate == true) then
+            return nil
+        end
+    end
     -- Titles are a player-only concept. Without this, an NPC/critter/pet whose
     -- name happens to split on whitespace (e.g. "Light-Infused Broom") gets its
     -- trailing word misread as a suffix title by ParseDisplay below.
@@ -871,6 +878,7 @@ function SocialLayer:AnchorTargetFrame(frame, profile)
 end
 
 function SocialLayer:RefreshTargetFrame()
+    -- Central sync path: apply suppression/layout, then choose live target, settings placeholder, or hidden state.
     local profile = GetProfile()
     local frame = self:EnsureTargetFrame()
     if profile and not self:IsValidLayoutKey(profile.layout) then
@@ -905,7 +913,10 @@ function SocialLayer:RefreshTargetFrame()
             tostring(record.titleID or record.titleText or ""),
         }, "|"))
     else
-        local settingsOpen = ns.Settings and ns.Settings.panel and ns.Settings.panel.IsShown and ns.Settings.panel:IsShown()
+        -- The target-unlock/reset controls live on the Title Spotting sub-tab
+        -- specifically, not the main Epithet page, so the placeholder pill
+        -- should only appear while that sub-tab is the one showing.
+        local settingsOpen = ns.Settings and ns.Settings.titleSpottingPanel and ns.Settings.titleSpottingPanel.IsShown and ns.Settings.titleSpottingPanel:IsShown()
         if profile.targetUnlock and settingsOpen then
             self:AnchorTargetFrame(frame, profile)
             self:SetTargetPillPlaceholder(frame)
@@ -951,6 +962,7 @@ end
 function SocialLayer:UpdateTargetDrag(frame)
     local profile = GetProfile()
     if not frame or not profile then return end
+    -- Cursor positions are physical pixels; convert to UIParent units for scale-safe anchor offsets.
     local scale = UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale() or 1
     local cx, cy = GetCursorPosition()
     cx = cx / scale

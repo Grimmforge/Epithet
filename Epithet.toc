@@ -5,7 +5,7 @@
 ## Notes-deDE: Durchsucht alle Spielertitel, zeigt ihre Quellen und Seltenheitsstufen an und verfolgt eure Sammlung.
 ## Notes-frFR: Parcourez tous les titres du jeu, découvrez comment chacun s'obtient, leur palier de rareté, et suivez votre collection.
 ## Author: Joe Tomkinson (Grimmvöcare - Bronzebeard) @ GrimmsForge
-## Version: 1.3.0
+## Version: 1.3.1
 ## SavedVariables: EpithetDB
 ## IconTexture: Interface\AddOns\Epithet\icons\logo\epithet-wax-seal-red-mark-64
 ## OptionalDeps: Ace3, LibDataBroker-1.1, LibDBIcon-1.0
@@ -33,8 +33,8 @@ data\TitlesDB.deDE.lua
 data\TitlesDB.ruRU.lua
 data\TitlesDB.frFR.lua
 WhatsNew\Content.lua
-WhatsNew\Versions\v1_2_0.lua
 WhatsNew\Versions\v1_3_0.lua
+WhatsNew\Versions\v1_3_1.lua
 
 # Core
 Core\Theme.lua

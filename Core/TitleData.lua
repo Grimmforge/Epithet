@@ -267,6 +267,7 @@ function TitleData:Scan(force)
 
     local records = {}
     local recordsByID = {}
+    -- One lowercased title text can map to multiple records (e.g., prefix/suffix variants).
     local recordsByLowerText = {}
     local recordsByDedupeKey = {}
     local earnedCount = 0
@@ -484,6 +485,7 @@ end
 -- Render title in context: "the Insane Aelynne" or "Aelynne, Lord Admiral"
 -- ---------------------------------------------------------------------------
 function TitleData:RenderTitleInContext(record, name)
+    -- Any non-prefix type intentionally falls back to suffix rendering for safe output.
     name = name or self.playerName or "Player"
     if record.type == "prefix" then
         return record.text .. " " .. name
