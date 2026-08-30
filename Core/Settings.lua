@@ -19,12 +19,11 @@ local function ApplyPortraitTexture(texture, unit, style, shell)
 
     if not texture or not unit or not SetPortraitTexture then return end
 
-    local ok = pcall(SetPortraitTexture, texture, unit, true)
-    if not ok then
-        ok = pcall(SetPortraitTexture, texture, unit, false)
-        if not ok then
-            SetPortraitTexture(texture, unit)
-        end
+    -- Mirrors Layouts:ApplyPortraitTexture, minus the retry bookkeeping: this
+    -- branch only runs if the layout registry somehow failed to load, and the
+    -- pcall is guarding the 10.0 disableMasking argument, not the call itself.
+    if not pcall(SetPortraitTexture, texture, unit, true) then
+        pcall(SetPortraitTexture, texture, unit)
     end
 
     if style == "portrait" and shell and shell.GetWidth and shell.GetHeight then
@@ -48,54 +47,6 @@ local function ApplyPortraitTexture(texture, unit, style, shell)
     end
 
     texture:SetTexCoord(0.15, 0.85, 0.15, 0.85)
-end
-
--- Clear and reassign the preview portrait model to the player unit.
-local function ReseatPreviewPortraitModel(model)
-    if not model or not model.SetUnit then return false end
-
-    if model.ClearModel then
-        pcall(model.ClearModel, model)
-    end
-
-    local ok = pcall(model.SetUnit, model, "player")
-    if ok and model.RefreshUnit then
-        pcall(model.RefreshUnit, model)
-    end
-    return ok and true or false
-end
-
--- Keep retrying the preview model seat while the model is visible.
--- Shared across refreshes to prevent overlapping retry loops.
-local seatTicker
-
-local function EnsurePreviewPortraitModelSeated(model)
-    -- Return true as soon as the 3D path exists so the model stays shown while
-    -- the retry ticker finishes seating it.
-    if not model or not model.SetUnit then return false end
-
-    ReseatPreviewPortraitModel(model)
-
-    -- Reuse the active retry ticker instead of starting a second one.
-    if seatTicker or not (C_Timer and C_Timer.NewTicker) then return true end
-
-    local ticks, visibleSeats = 0, 0
-    seatTicker = C_Timer.NewTicker(0.1, function(ticker)
-        ticks = ticks + 1
-
-        if model.IsVisible and model:IsVisible() then
-            ReseatPreviewPortraitModel(model)
-            visibleSeats = visibleSeats + 1
-        end
-
-        -- Stop after a few visible retries, or after a short timeout.
-        if visibleSeats >= 3 or ticks >= 15 then
-            ticker:Cancel()
-            seatTicker = nil
-        end
-    end)
-
-    return true
 end
 
 -- Return the social settings profile, if it has been initialised.
@@ -314,6 +265,13 @@ function Options:BuildLanguagePanel(parentCategory)
     end
 
     local panel = CreateFrame("Frame")
+    -- Created hidden, and this is load-bearing: a parentless frame is shown by
+    -- default and counts as visible, so a panel built shown is "visible" from
+    -- login onward and its first display by the settings UI is not a visibility
+    -- transition -- OnShow never fires and none of the show-time work runs.
+    -- (Later opens were always fine: ClearCurrentCategoryCanvas hides the frame
+    -- on navigate-away, so every open after the first is a real transition.)
+    panel:Hide()
     panel.name = L["OPTIONS_LANGUAGE_SECTION"]
     self.languagePanel = panel
 
@@ -403,6 +361,8 @@ function Options:BuildAchievementsPanel(parentCategory)
     if self.achievementsPanel then return self.achievementsPanel end
 
     local panel = CreateFrame("Frame")
+    -- Created hidden; see BuildLanguagePanel for why this is load-bearing.
+    panel:Hide()
     panel.name = L["SOCIAL_ACHIEVEMENT_SECTION"] or "Achievements"
     self.achievementsPanel = panel
 
@@ -603,6 +563,16 @@ function Options:BuildTitleSpottingPanel(parentCategory)
     if self.titleSpottingPanel then return self.titleSpottingPanel end
 
     local panel = CreateFrame("Frame")
+    -- Created hidden, and for this tab it is THE fix for the first-open 3D
+    -- portrait: built shown, the panel counted as visible from login, so the
+    -- portrait model was seated and its camera computed during the loading
+    -- screen (aimed at z=1.5, empty air) -- and the first real display fired
+    -- no OnShow, so nothing ever ran to correct it. Hidden from birth, the
+    -- login-time seat is refused and deferred to the model's OnShow, which now
+    -- fires on the first display and seats the model while it is genuinely on
+    -- screen -- the case that computes the camera correctly. See
+    -- BuildLanguagePanel for the general form of this note.
+    panel:Hide()
     panel.name = L["SOCIAL_LAYER"] or "Title Spotting"
     self.titleSpottingPanel = panel
 
@@ -778,6 +748,12 @@ function Options:BuildTitleSpottingPanel(parentCategory)
     previewPlate.portrait:SetPoint("BOTTOMRIGHT", previewPlate.portraitShell, "BOTTOMRIGHT", -1, 0)
     previewPlate.portrait:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
 
+    -- The model is deliberately NOT built here. This panel is parentless until
+    -- SettingsPanelMixin:DisplayLayout parents it into the settings canvas, and
+    -- a Model created under a parentless frame is created against the wrong
+    -- effective scale. The layout builds it on the first 3D pass instead, by
+    -- which point the panel is parented.
+
     previewPlate.portraitTopRule = previewPlate:CreateTexture(nil, "BORDER")
     previewPlate.portraitTopRule:SetHeight(1)
     if T and T.col and T.col.line then
@@ -847,20 +823,14 @@ function Options:BuildTitleSpottingPanel(parentCategory)
         local style = ns.SocialLayer and ns.SocialLayer.GetPreviewStyle and ns.SocialLayer:GetPreviewStyle(profile) or nil
         if not style or not style.metrics then return end
 
-        local previewVisible = panel and panel.IsShown and panel:IsShown()
-
         -- Always render the preview from the player portrait.
         previewPlate.portraitUnit = "player"
 
-        -- Use the 2D path while the panel is hidden, then allow the saved mode
-        -- once the tab is on screen. Written as if/else on purpose: the
-        -- `cond and nil or "2d"` shorthand always yields "2d", because `nil` is
-        -- not a usable true-branch value in Lua's and/or idiom.
-        if previewVisible then
-            previewPlate.portraitModeOverride = nil
-        else
-            previewPlate.portraitModeOverride = "2d"
-        end
+        -- previewPlate.portraitModeOverride is deliberately not touched here:
+        -- the override is a per-frame input to the layout's mode resolution
+        -- (see ResolvePortraitMode), and a refresh that reset it would silently
+        -- undo whatever its owner asked for. Nothing sets it today; the preview
+        -- renders the saved mode.
 
         local key = style.key or "classic"
         local previewProfile = { layout = key }
@@ -888,24 +858,25 @@ function Options:BuildTitleSpottingPanel(parentCategory)
             previewPlate.crown:SetTexture(style.crownIcon)
         end
 
-        local modelReady = false
-        if previewPlate.portraitMode == "3d" then
-            modelReady = EnsurePreviewPortraitModelSeated(previewPlate.portraitModel)
-        end
-
-        if not modelReady then
-            if previewPlate.portraitModel and previewPlate.portraitModel.Hide then
-                previewPlate.portraitModel:Hide()
-            end
-            if previewPlate.portrait and previewPlate.portrait.Show then
-                previewPlate.portrait:Show()
-            end
+        -- Showing/hiding the model against the texture is the layout's job and it
+        -- has already run above. The only thing left for the preview is the 2D
+        -- artwork, which classic's LayoutPortrait positions but never fills.
+        if previewPlate.portraitMode ~= "3d" then
             ApplyPortraitTexture(previewPlate.portrait, "player", m.layoutStyle, previewPlate.portraitShell)
         end
 
         previewPlate.gem:SetTexture(style.rarityGem)
         previewPlate.gem:SetVertexColor(0.90, 0.70, 0.25, 1.0)
         previewPlate.rarityText:SetTextColor(0.90, 0.70, 0.25)
+    end
+
+    -- Checkpoints for the portrait event log (see DumpPortraitState): the
+    -- panel's show and the user's mode switches anchor the log's timeline, so
+    -- a future portrait report can be read without guessing what the user did.
+    local function LogPreview(fmt, ...)
+        if ns.Layouts and ns.Layouts.LogPortraitEventFor then
+            ns.Layouts:LogPortraitEventFor(previewPlate, fmt, ...)
+        end
     end
 
     local previewFunnyToggle = MakeCheck(canvas, L["SOCIAL_LAYOUT_FUNNY_TOGGLE"] or "Show funny long-title preview",
@@ -996,6 +967,7 @@ function Options:BuildTitleSpottingPanel(parentCategory)
                     return
                 end
 
+                LogPreview("manual mode switch -> %s", tostring(option.value))
                 SetPortraitModeValue(option.value)
                 RefreshPortraitModeDropdown()
                 RefreshAll()
@@ -1415,11 +1387,13 @@ function Options:BuildTitleSpottingPanel(parentCategory)
                 RefreshControls()
 
                 local previewSized = (previewFrame:GetWidth() or 0) > 0 and (previewFrame:GetHeight() or 0) > 0
-                local modelReady = (not previewPlate)
-                    or (previewPlate.portraitMode ~= "3d")
-                    or (previewPlate.portraitModel and previewPlate.portraitModel.IsVisible and previewPlate.portraitModel:IsVisible())
 
-                if (ticks >= 2 and previewSized and modelReady) or ticks >= 6 then
+                -- The settings panel parents and anchors this canvas after
+                -- showing it, so the OnShow refresh can run against unresolved
+                -- rects; these follow-up passes stop once the preview has real
+                -- geometry (or after a capped wait, for a client that never
+                -- resolves it).
+                if (ticks >= 2 and previewSized) or ticks >= 6 then
                     ticker:Cancel()
                     showSyncTicker = nil
                 end
@@ -1442,6 +1416,7 @@ function Options:BuildTitleSpottingPanel(parentCategory)
         if scrollFrame then
             scrollFrame:SetVerticalScroll(0)
         end
+        LogPreview("panel OnShow")
         -- Reapply locale fonts to any lazily-built controls on each show.
         if T and T.ApplyLocaleFontToTree then
             T.ApplyLocaleFontToTree(panel)
@@ -1475,6 +1450,8 @@ function Options:Init()
 
     -- Build the main Epithet settings page and its sub-tabs.
     local panel = CreateFrame("Frame")
+    -- Created hidden; see BuildLanguagePanel for why this is load-bearing.
+    panel:Hide()
     panel.name = "Epithet"
     self.panel = panel
 

@@ -25,19 +25,11 @@ local function Trim(value)
     return s
 end
 
--- The dialogue used to be rendered by handing a hand-built HTML string to a
--- SimpleHTML widget, but that widget only parses markup if the whole document
--- is "well-formed" by its own undocumented rules - anything it doesn't like
--- (a bare quote character was one culprit) makes it silently fall back to
--- showing the raw tags as text, with no error to debug against. Rendering
--- each block as a real FontString/Texture below sidesteps that whole class of
--- bug: there's no markup to get wrong, just plain text (which can freely
--- contain quotes, apostrophes, whatever) plus WoW's native |cff..|r colour
--- codes for emphasis.
+-- The dialog body is rendered as native WoW widgets (FontString/Texture/Button)
+-- instead of HTML markup.
 
--- Image lines may optionally pin a display size with a trailing "=WIDTHxHEIGHT"
--- (e.g. "![alt](path =460x230)"), so non-square art doesn't get squashed into
--- the default 96x96 icon box. Falls back to 96x96 when no size is given.
+-- Parses optional image size suffixes from markdown image directives.
+-- Example: "![alt](path =460x230)"; defaults to 96x96 if no size is present.
 local DEFAULT_IMAGE_SIZE = 96
 
 local function ParseImageDirective(raw)
@@ -48,8 +40,7 @@ local function ParseImageDirective(raw)
     return path, tonumber(w) or DEFAULT_IMAGE_SIZE, tonumber(h) or DEFAULT_IMAGE_SIZE
 end
 
--- **bold** and *emphasis* become WoW colour-code runs instead of HTML tags -
--- there's no italic font loaded, so emphasis just gets a different tint.
+-- Converts markdown-like inline emphasis to WoW color-code runs.
 local BOLD_COLOR = "fff6e2a6"
 local EMPHASIS_COLOR = "ffe8c873"
 
@@ -60,16 +51,8 @@ local function RenderInlineColor(value)
     return text
 end
 
--- Turns the markdown-ish body text into a flat list of layout blocks. Blank
--- lines in the source are ignored entirely - spacing between blocks is a
--- fixed property of the block types involved (see BLOCK_STYLE), not
--- something content authors need to remember to add.
---
--- A line may open with either "*" or "-" as its bullet marker (both are
--- common markdown convention, and content has been authored with both), and
--- "[label](url)" - optionally bullet-prefixed - becomes a clickable "link"
--- block. WoW can't open a browser from an addon, so a link block doesn't
--- navigate anywhere; see WhatsNew:ShowLinkPopup for what clicking it does.
+-- Parses markdown-like body text into a flat list of typed render blocks.
+-- Supports headings, bullets, links, images, and paragraphs; blank lines are skipped.
 local function BuildBlocks(body)
     local src = tostring(body or "")
     local blocks = {}
@@ -105,20 +88,12 @@ local function BuildBlocks(body)
     return blocks
 end
 
--- UTF-8 encoded Cyrillic (U+0400-U+04FF -> lead byte 0xD0-0xD3) is the one
--- script the client's FRIZQT__ font doesn't cover but the bundled Unicode font
--- does (see Fonts/README.md). Checked per rendered block rather than gated on
--- the active display locale (contrast Theme.NeedsBundledFont): a line can
--- deliberately mix scripts - e.g. this very file's own multilingual "Bonjour,
--- Привет, Hello!" heading - regardless of which language the reader has
--- Epithet set to.
+-- Detects whether text includes UTF-8 Cyrillic code points.
 local function ContainsCyrillic(text)
     return text ~= nil and text:find("[\208-\211][\128-\191]") ~= nil
 end
 
--- Picks the bundled Unicode font over the client font only for the blocks
--- that actually need it, so the popup's typography stays the client's own
--- FRIZQT__ everywhere else.
+-- Applies the bundled Unicode font only when the block text contains Cyrillic.
 local function ApplyBlockFont(fontLike, path, size, text)
     if T and T.ApplyUnicodeSansFont and ContainsCyrillic(text) then
         T.ApplyUnicodeSansFont(fontLike, size)
@@ -127,26 +102,17 @@ local function ApplyBlockFont(fontLike, path, size, text)
     end
 end
 
--- Layout constants: content width matches the scroll frame's inner width
--- (760 dialogue - 18 left inset - 38 right inset - scrollbar allowance), and
--- each block type carries its own font/colour plus the gap it always gets
--- above it, so headings and images are guaranteed breathing room regardless
--- of how the source markdown is formatted.
+-- Layout constants for content width, list indentation, and image spacing.
 local BODY_WIDTH = 690
 local BULLET_INDENT = 14
 local IMAGE_GAP_BEFORE = 14
 
--- WoW hyperlink blue, distinct from the theme's gold body/emphasis colours so a
--- link visibly reads as clickable; brightens further on hover.
+-- Link colors for default and hover states.
 local LINK_COLOR = { 0.45, 0.73, 1.0 }
 local LINK_HOVER_COLOR = { 0.68, 0.86, 1.0 }
 
--- gapAfter is a heading's own trailing margin, added under it regardless of
--- what follows - relying solely on the next block's gapBefore isn't enough,
--- because a heading rendered in a different font (e.g. the bundled Unicode
--- font a Cyrillic-containing heading switches to, see ApplyBlockFont) can have
--- different line-height metrics than GetStringHeight() assumes elsewhere,
--- which visibly eats into that gap.
+-- Per-block typography and spacing rules used by RenderBody.
+-- gapAfter provides explicit trailing space for heading blocks.
 local BLOCK_STYLE = {
     h1 = { font = "Fonts\\FRIZQT__.TTF", size = 18, color = { 0.96, 0.89, 0.65 }, gapBefore = 18, gapAfter = 10 },
     h2 = { font = "Fonts\\FRIZQT__.TTF", size = 14, color = { 0.90, 0.80, 0.52 }, gapBefore = 16, gapAfter = 8 },
@@ -155,8 +121,7 @@ local BLOCK_STYLE = {
     link = { font = "Fonts\\FRIZQT__.TTF", size = 12, color = LINK_COLOR, gapBefore = 10, gapBeforeSameType = 4 },
 }
 
--- Bullets and links both render as an indented "• " list row, and sit tight
--- against a same-type neighbour (see BLOCK_STYLE[...].gapBeforeSameType).
+-- List-like blocks share indentation and compact same-type vertical spacing.
 local function IsListItem(blockType)
     return blockType == "bullet" or blockType == "link"
 end
@@ -184,9 +149,7 @@ function WhatsNew:AcquireImageWidget(index)
     return tex
 end
 
--- A link block needs to be clickable, which a FontString can never be, so it
--- gets its own pooled Button (with a FontString label) instead of reusing
--- AcquireTextWidget. See WhatsNew:ShowLinkPopup for what a click does.
+-- Links use pooled Button widgets (with a FontString label) so rows are clickable.
 function WhatsNew:AcquireLinkWidget(index)
     self.linkWidgets = self.linkWidgets or {}
     local btn = self.linkWidgets[index]
@@ -217,11 +180,8 @@ function WhatsNew:AcquireLinkWidget(index)
     return btn
 end
 
--- Lays out one block per pooled widget, top to bottom, and returns the total
--- content height so the caller can size the scroll child. Widgets are pooled
--- and reused across calls since a FontString/Texture/Button can't be
--- destroyed, only hidden; any left over from a previous, longer body get
--- hidden at the end.
+-- Lays out parsed blocks top-to-bottom, reusing pooled widgets, and returns
+-- total rendered height for sizing the scroll child.
 function WhatsNew:RenderBody(rawBody)
     self.textWidgets = self.textWidgets or {}
     self.imageWidgets = self.imageWidgets or {}
@@ -321,16 +281,9 @@ function WhatsNew:GetContentForVersion(version)
     return container[version]
 end
 
--- A What's New field (title/body) may be either a plain string (single language)
--- or a table keyed by locale, e.g. { enUS = [[...]], ruRU = [[...]] }. Resolve
--- against ns.activeLocale - the language Epithet:OnInitialize applied from the
--- player's own language picker (Options -> Epithet -> Language), which can
--- differ from the game client's own GetLocale() - falling back to that only if
--- ApplyLocale genuinely hasn't run yet, then to English so a version that
--- hasn't been translated still renders rather than showing blank. English
--- content is keyed "enUS" here, but ns.activeLocale normalises an English
--- client/preference to "enGB" (see LocaleManager.lua), so that lookup misses
--- and falls through to value.enUS below - by design, not a bug.
+-- Resolves localized content fields.
+-- Accepts either a direct string or a locale-keyed table and falls back to
+-- enUS, enGB, default, then empty string.
 function WhatsNew:LocalizeField(value)
     if type(value) == "table" then
         local locale = ns.activeLocale or (GetLocale and GetLocale()) or "enUS"
@@ -350,7 +303,7 @@ function WhatsNew:EnsureState()
 end
 
 function WhatsNew:GetStateForVersion(version, create)
-    -- create=true lazily bootstraps per-version state for older saved DB snapshots.
+    -- create=true initializes missing per-version state on demand.
     local state = self:EnsureState()
     local byVersion = state.byVersion
     local item = byVersion[version]
@@ -391,13 +344,8 @@ function WhatsNew:DismissCurrentVersion()
     state.hasNew = false
 end
 
--- WoW addons can't open an external browser, so a link block's click handler
--- opens a small Blizzard StaticPopup with the URL pre-selected in an edit box
--- instead - the standard WoW addon pattern for "here's a link, please copy it
--- yourself" (the same trick the Spotting Log's export/import modal uses for
--- its payload text). Registered lazily on first use, not at file load, so
--- L[...] resolves against the locale Epithet:OnInitialize has already applied
--- by the time a player can actually click a link.
+-- Shows a copy-friendly StaticPopup for a URL clicked from a link block.
+-- The popup definition is registered lazily on first use.
 function WhatsNew:ShowLinkPopup(url)
     if not url or url == "" then
         return
@@ -409,13 +357,8 @@ function WhatsNew:ShowLinkPopup(url)
             button1 = OKAY,
             hasEditBox = true,
             editBoxWidth = 350,
-            -- Read popup.data rather than trusting an OnShow(self, data) call
-            -- signature: dialog.data is what StaticPopup_Show's 4th argument
-            -- reliably lands on, and that held even when the data wasn't also
-            -- being threaded through as OnShow's second parameter (which is
-            -- what left this edit box blank). Also try the legacy
-            -- "<name>EditBox" global as a fallback in case a client's popup
-            -- template doesn't expose the editBox parentKey.
+            -- Read the URL from popup.data (4th arg to StaticPopup_Show) and
+            -- use popup.editBox or legacy "<name>EditBox" as a fallback source.
             OnShow = function(popup)
                 local edit = popup.editBox or (popup.GetName and _G[popup:GetName() .. "EditBox"])
                 if not edit then return end
@@ -463,11 +406,8 @@ function WhatsNew:EnsureDialog()
     end
     frame:Hide()
 
-    -- Bordered button chrome shared by the header close button and the
-    -- bottom Dismiss button. With no iconPath it renders a text label (the
-    -- original Dismiss look); with one it centres that texture instead - used
-    -- for the close button so it matches the tinted-icon close button already
-    -- established in UI/MainFrame.xml rather than inventing a second style.
+    -- Applies shared bordered button chrome.
+    -- Text label when iconPath is nil; centered icon when provided.
     local function Skin(button, iconPath)
         local bg = button:CreateTexture(nil, "BACKGROUND")
         bg:SetAllPoints()
@@ -531,8 +471,7 @@ function WhatsNew:EnsureDialog()
         end
     end
 
-    -- Logo, left of the title - the same wax-seal mark used in the main
-    -- window's own title bar (UI/MainFrame.xml), for a consistent look.
+    -- Header logo texture displayed to the left of the title.
     local logo = frame:CreateTexture(nil, "ARTWORK")
     logo:SetSize(28, 28)
     logo:SetPoint("TOPLEFT", 14, -10)
@@ -543,9 +482,7 @@ function WhatsNew:EnsureDialog()
     heading:SetPoint("RIGHT", frame, "RIGHT", -46, 0)
     heading:SetJustifyH("LEFT")
 
-    -- Sized and skinned to match UI/MainFrame.xml's own close button (26x26
-    -- hit area, tinted-icon style) - the plain 18x18 text "x" this replaces
-    -- was a noticeably smaller and harder-to-hit target than that button.
+    -- Header close button using the shared icon-button skin.
     local closeButton = CreateFrame("Button", nil, frame)
     closeButton:SetSize(26, 26)
     closeButton:SetPoint("TOPRIGHT", -8, -8)
@@ -568,8 +505,7 @@ function WhatsNew:EnsureDialog()
 
     scroll:SetScrollChild(body)
 
-    -- Bottom cutoff marker: draw in a dedicated overlay frame with higher
-    -- frame level than the scroll child so it always sits above content.
+    -- Bottom cutoff markers rendered in an overlay above scroll content.
     local scrollCutoffOverlay = CreateFrame("Frame", nil, frame)
     scrollCutoffOverlay:SetPoint("TOPLEFT", scroll, "TOPLEFT", 0, 0)
     scrollCutoffOverlay:SetPoint("BOTTOMRIGHT", scroll, "BOTTOMRIGHT", 0, 0)
@@ -635,7 +571,7 @@ function WhatsNew:Show(version)
 end
 
 function WhatsNew:ShowForCurrentVersionIfNeeded()
-    -- Startup display is deferred and guarded so only one popup can be scheduled per session.
+    -- Defers startup display and prevents multiple popup schedules per session.
     if self.shownThisSession or self.pendingShow then
         return
     end

@@ -4,7 +4,6 @@
 local _, ns = ...
 
 local Layouts = ns.Layouts
-local CreateFrame = CreateFrame
 local floor = math.floor
 
 local PORTRAIT_MODE_2D = "2d"
@@ -40,19 +39,6 @@ local function ResolvePortraitMode(frame, m)
         mode = PORTRAIT_MODE_3D
     end
     return mode
-end
-
-local function EnsurePortraitModel(frame)
-    if not frame or frame.portraitModel or not frame.portraitShell then return end
-
-    frame.portraitModel = CreateFrame("PlayerModel", nil, frame.portraitShell)
-    frame.portraitModel:SetFrameLevel(frame.portraitShell:GetFrameLevel() + 2)
-    if frame.portraitModel.SetCamDistanceScale then
-        frame.portraitModel:SetCamDistanceScale(1.0)
-    end
-    if frame.portraitModel.SetPortraitZoom then
-        frame.portraitModel:SetPortraitZoom(1)
-    end
 end
 
 if not Layouts or not Layouts.RegisterLayout then
@@ -109,7 +95,9 @@ Layouts:RegisterLayout("classic", {
         local mode = ResolvePortraitMode(frame, m)
         frame.portraitMode = mode
         if mode == PORTRAIT_MODE_3D then
-            EnsurePortraitModel(frame)
+            -- Creation, the keep-on-hide flag, the load callback and the camera
+            -- all live on the registry so both layouts share one implementation.
+            self:EnsurePortraitModel(frame)
         end
 
         if frame.portraitRingFrame then
@@ -263,17 +251,14 @@ Layouts:RegisterLayout("classic", {
             frame.portraitModel:ClearAllPoints()
             frame.portraitModel:SetPoint("TOPLEFT", frame.portraitShell, "TOPLEFT", 0, 0)
             frame.portraitModel:SetPoint("BOTTOMRIGHT", frame.portraitShell, "BOTTOMRIGHT", 0, 0)
-            if frame.portraitUnit and frame.portraitModel.SetUnit then
-                local ok = pcall(frame.portraitModel.SetUnit, frame.portraitModel, frame.portraitUnit)
-                if not ok then
-                    pcall(frame.portraitModel.SetUnit, frame.portraitModel, "player")
-                end
-                if frame.portraitModel.RefreshUnit then
-                    pcall(frame.portraitModel.RefreshUnit, frame.portraitModel)
-                end
-            end
+            self:ApplyPortraitLayering(frame)
+            self:SeatPortraitModel(frame)
+            self:RefreshPortraitCamera(frame)
         elseif frame.portrait then
-            if frame.portraitModel then frame.portraitModel:Hide() end
+            if frame.portraitModel then
+                frame.portraitModel:Hide()
+                self:ReleasePortraitModel(frame)
+            end
             frame.portrait:ClearAllPoints()
             frame.portrait:SetPoint("TOPLEFT", frame.portraitShell, "TOPLEFT", 0, -1)
             frame.portrait:SetPoint("BOTTOMRIGHT", frame.portraitShell, "BOTTOMRIGHT", -1, 0)

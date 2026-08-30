@@ -103,21 +103,6 @@ local function EnsurePortraitMask(frame)
     AttachTextureMasks(frame)
 end
 
--- Lazily create the PlayerModel. Only called in 3D mode. Not masked; the ring
--- crops it.
-local function EnsurePortraitModel(frame)
-    if not frame or frame.portraitModel or not frame.portraitShell then return end
-
-    frame.portraitModel = CreateFrame("PlayerModel", nil, frame.portraitShell)
-    frame.portraitModel:SetFrameLevel(frame.portraitShell:GetFrameLevel() + 2)
-    if frame.portraitModel.SetCamDistanceScale then
-        frame.portraitModel:SetCamDistanceScale(1.0)
-    end
-    if frame.portraitModel.SetPortraitZoom then
-        frame.portraitModel:SetPortraitZoom(1)
-    end
-end
-
 -- Overlay ring that crops the 3D model to a circle. It lives on its own frame
 -- ABOVE the model, because a texture on portraitShell would render beneath the
 -- model (child frames always draw over their parent's textures).
@@ -356,6 +341,10 @@ Layouts:RegisterLayout("portrait", {
 
     ApplyLayout = function(self, frame, m)
         local mode = ResolvePortraitMode(frame, m)
+        if self.LogPortraitEventFor then
+            self:LogPortraitEventFor(frame, "layout pass mode=%s override=%s",
+                tostring(mode), tostring(frame.portraitModeOverride))
+        end
         frame.portraitMode = mode -- cache resolved mode for LayoutPortrait
 
         if frame.editHintTop then
@@ -366,9 +355,12 @@ Layouts:RegisterLayout("portrait", {
         -- Build the ring for both 2D and 3D modes.
         EnsurePortraitRing(frame, m)
 
-        -- Only build the 3D model when we actually intend to use it.
+        -- Only build the 3D model when we actually intend to use it. It is
+        -- never masked; the ring crops it. Creation, the keep-on-hide flag, the
+        -- load callback and the camera all live on the registry so both layouts
+        -- share one implementation.
         if mode == PORTRAIT_MODE_3D then
-            EnsurePortraitModel(frame)
+            self:EnsurePortraitModel(frame)
         end
 
         EnsurePortraitMask(frame)
@@ -505,21 +497,18 @@ Layouts:RegisterLayout("portrait", {
             frame.portraitModel:SetPoint("CENTER", frame.portraitShell, "CENTER", 0, 0)
             frame.portraitModel:SetSize(portraitSize, portraitSize)
 
-            if frame.portraitUnit and frame.portraitModel.SetUnit then
-                local ok = pcall(frame.portraitModel.SetUnit, frame.portraitModel, frame.portraitUnit)
-                if not ok then
-                    pcall(frame.portraitModel.SetUnit, frame.portraitModel, "player")
-                end
-                if frame.portraitModel.RefreshUnit then
-                    pcall(frame.portraitModel.RefreshUnit, frame.portraitModel)
-                end
-            end
+            self:ApplyPortraitLayering(frame)
+            self:SeatPortraitModel(frame)
+            self:RefreshPortraitCamera(frame)
 
             LayoutPortraitRing(frame, m, true)
         else
             -- 2D masked portrait texture. The mask is anchored to portraitShell,
             -- so size the texture to the shell for the circle to read cleanly.
-            if frame.portraitModel then frame.portraitModel:Hide() end
+            if frame.portraitModel then
+                frame.portraitModel:Hide()
+                self:ReleasePortraitModel(frame)
+            end
             LayoutPortraitRing(frame, m, false)
             if frame.portrait then
                 frame.portrait:Show()

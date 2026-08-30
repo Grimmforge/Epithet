@@ -131,6 +131,12 @@ local DEBUG_MODAL_COMMANDS = {
         previewTitle = "Title DB Missing Audit",
         previewNote = "List client titles missing from Epithet DB.",
     },
+    {
+        id = "portrait_debug",
+        label = "Portraits: model state",
+        previewTitle = "Portrait Model State",
+        previewNote = "Seat, load, framing, layering and parent chain for every 3D portrait model.",
+    },
 }
 
 local function FindDebugModalCommandByID(id)
@@ -300,6 +306,24 @@ local function RunDebugModalCommand(commandID)
             title = "Title DB Missing Audit",
             note = "Live client titles that are not present in Epithet DB.",
             payload = report.payload,
+        }
+    end
+
+    if command == "portrait_debug" then
+        local layouts = ns.Layouts
+        if not layouts or type(layouts.DumpPortraitState) ~= "function" then
+            return false, "Portrait state dump is unavailable in this build."
+        end
+
+        local lines = {}
+        layouts:DumpPortraitState(function(line)
+            lines[#lines + 1] = line
+        end)
+
+        return true, {
+            title = "Portrait Model State",
+            note = "Run this while a blank portrait is on screen.",
+            payload = table.concat(lines, "\n"),
         }
     end
 
