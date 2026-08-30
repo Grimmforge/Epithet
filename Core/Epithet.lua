@@ -35,17 +35,19 @@ local DB_DEFAULTS = {
         favourites = {},          -- set keyed by lowercase title text: { ["the explorer"] = true }
         sort = "collectedFirst",  -- "collectedFirst" | "expansion" | "alphabetical" | "quality" | "category"
         obtainableOnly = false,   -- toggle: show earned % against obtainable pool only
+        showWhatsNewOnStartup = true, -- toggle: auto-show the What's New popup on first login after an update
         social = {
             enabled = true,
             layout = "portrait",
             animatedPortrait = true,
+            showSelfTargetNameplate = false,
             fadeNameplates = false,
             fadeDuration = 4.0,
             previewFunnyTitle = false,
             spotNotify = true,
             achievementNotify = true,
             achievementNotifyMode = "full",
-            achievementAlertAnchor = "uiparent",
+            achievementAlertAnchor = "alertframe",
             spotLogScope = "spotted",
             spotLogView = "grid",
             hideInCombat = true,
@@ -128,6 +130,12 @@ local DEBUG_MODAL_COMMANDS = {
         label = "DB audit: missing titles",
         previewTitle = "Title DB Missing Audit",
         previewNote = "List client titles missing from Epithet DB.",
+    },
+    {
+        id = "portrait_debug",
+        label = "Portraits: model state",
+        previewTitle = "Portrait Model State",
+        previewNote = "Seat, load, framing, layering and parent chain for every 3D portrait model.",
     },
 }
 
@@ -234,6 +242,8 @@ end
 ns.BuildTitleDBAuditPayload = BuildTitleDBAuditPayload
 
 local function RunDebugModalCommand(commandID)
+    -- Execute one debug action and normalize its result for modal rendering.
+    -- Returns: true, { title, note, payload } on success; false, "error" on failure.
     local command = commandID or "title_parse_debug"
 
     if command == "title_parse_debug" then
@@ -296,6 +306,24 @@ local function RunDebugModalCommand(commandID)
             title = "Title DB Missing Audit",
             note = "Live client titles that are not present in Epithet DB.",
             payload = report.payload,
+        }
+    end
+
+    if command == "portrait_debug" then
+        local layouts = ns.Layouts
+        if not layouts or type(layouts.DumpPortraitState) ~= "function" then
+            return false, "Portrait state dump is unavailable in this build."
+        end
+
+        local lines = {}
+        layouts:DumpPortraitState(function(line)
+            lines[#lines + 1] = line
+        end)
+
+        return true, {
+            title = "Portrait Model State",
+            note = "Run this while a blank portrait is on screen.",
+            payload = table.concat(lines, "\n"),
         }
     end
 
@@ -654,6 +682,7 @@ function Epithet:OnInitialize()
     f.cat = f.cat or {}
     f.kind = f.kind or {}
     f.faction = f.faction or {}
+    self.db.profile.showWhatsNewOnStartup = (self.db.profile.showWhatsNewOnStartup ~= false)
     local s = self.db.profile.social or {}
     s.enabled = (s.enabled ~= false)
     s.targetAnchorPoint = nil -- legacy field removed; target is always anchored below target frame.
@@ -687,7 +716,7 @@ function Epithet:OnInitialize()
     s.achievementNotifyMode = mode
     s.achievementNotify = (mode ~= "off")
     if s.achievementAlertAnchor ~= "uiparent" and s.achievementAlertAnchor ~= "alertframe" then
-        s.achievementAlertAnchor = "uiparent"
+        s.achievementAlertAnchor = "alertframe"
     end
     if s.spotLogScope ~= "spotted" and s.spotLogScope ~= "remaining" then
         s.spotLogScope = "spotted"
@@ -703,6 +732,7 @@ function Epithet:OnInitialize()
         s.hideInCombat = (s.hideInCombat == true)
     end
     s.hideInGroup = (s.hideInGroup == true)
+    -- Never persist drag-unlocked mode across sessions; relock on load to avoid accidental moves.
     s.targetUnlock = false
     self.db.profile.social = s
 

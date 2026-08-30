@@ -68,8 +68,8 @@ Epithet/
 ├── WhatsNew/
 │   ├── Content.lua          # What's New content registry
 │   └── Versions/
-│       ├── v1_2_0.lua       # Content for a single version's popup
-│       └── v1_2_0/          # That version's own dedicated art (banners, screenshots)
+│       ├── v1_3_0.lua       # Content for a single version's popup
+│       └── v1_3_1.lua       # A version can optionally add its own vX_Y_Z/ art folder (banners, screenshots)
 ├── data/
 │   ├── TitlesDB.enGB.lua    # Bundled static title database (enGB base / canonical)
 │   ├── TitlesDB.ruRU.lua.example  # Template for a localised prose overlay
@@ -82,6 +82,7 @@ Epithet/
 ├── docs/                    # Release notes and technical guides
 ├── scripts/                 # Build, fetch-libs, link, and release scripts
 ├── LICENSE
+├── NOTICE
 └── README.md
 ```
 
@@ -170,3 +171,7 @@ It's great to see people enjoying Epithet as an add-on to the extent that they g
 ## License
 
 Apache-2.0 license - see [LICENSE](LICENSE).
+
+If your addon or tool reads Epithet's data or capabilities at runtime (e.g. the `EpithetData` global) to enrich its own UI, please display a visible credit in that UI - see [NOTICE](NOTICE) for specifics. Thanks for playing nice.
+
+The hand-written `obtainability_reason` prose in the title database is authored content and is **not** licensed for reproduction elsewhere - see the "Reserved content" section of [NOTICE](NOTICE).

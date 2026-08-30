@@ -28,6 +28,12 @@ local function CanonicalTitleText(value)
     return text
 end
 
+-- Below this, a canonical title (e.g. "om" from "Om'") is short enough that it
+-- can appear as a substring of unrelated text purely by chance (e.g. inside
+-- "broom"), so loose substring-containment matching is skipped for it. Exact
+-- and canonical-equality matches above are unaffected.
+local FUZZY_SUBSTRING_MIN_LEN = 4
+
 local MainFrame = {}
 ns.MainFrame = MainFrame
 
@@ -85,8 +91,8 @@ function MainFrame:Init()
     if frame.TitleBar and frame.TitleBar.SettingsButton then
         local settingsBtn = frame.TitleBar.SettingsButton
         settingsBtn:SetScript("OnClick", function()
-            if ns.Settings and ns.Settings.OpenSpottingSettings then
-                ns.Settings:OpenSpottingSettings()
+            if ns.Settings and ns.Settings.OpenMainSettings then
+                ns.Settings:OpenMainSettings()
             end
         end)
         settingsBtn:HookScript("OnEnter", function(btn)
@@ -133,6 +139,18 @@ function MainFrame:Init()
             ns.LogbookUI:Hide()
         end
     end)
+
+    -- Locales the client font can't render (Russian on a Western client) need the
+    -- bundled face on EVERY FontString, not just the ones built via Theme.Sans /
+    -- Theme.Serif. Sweep the whole tree once the sub-panels exist, then again on
+    -- each show so anything built lazily afterwards is caught too. No-op on
+    -- locales the client fonts already cover.
+    if T and T.ApplyLocaleFontToTree then
+        T.ApplyLocaleFontToTree(frame)
+        frame:HookScript("OnShow", function(self_)
+            T.ApplyLocaleFontToTree(self_)
+        end)
+    end
 end
 
 -- ---------------------------------------------------------------------------
@@ -709,7 +727,8 @@ function MainFrame:OpenAndSelectTitle(titleText, titleType, titleID)
             score = score + 4
         elseif targetCanonical ~= "" and textCanonical == targetCanonical then
             score = score + 3
-        elseif targetCanonical ~= "" and (
+        elseif targetCanonical ~= "" and
+            #targetCanonical >= FUZZY_SUBSTRING_MIN_LEN and #textCanonical >= FUZZY_SUBSTRING_MIN_LEN and (
             textCanonical:find(targetCanonical, 1, true) or
             targetCanonical:find(textCanonical, 1, true)
         ) then

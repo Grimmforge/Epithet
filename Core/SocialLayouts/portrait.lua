@@ -64,11 +64,8 @@ end
 -- Apply the title font at the configured size, reading the existing font path so
 -- only the size changes. Called from ApplyLayout and before SizePill measures.
 local function ApplyTitleFont(frame, m)
-    if not frame or not frame.titleText or not frame.titleText.GetFont then return end
-    local path, _, flags = frame.titleText:GetFont()
-    if path then
-        frame.titleText:SetFont(path, m.titleFontSize or 16, flags)
-    end
+    if not frame then return end
+    Layouts:SetFontSize(frame.titleText, m.titleFontSize or 16)
 end
 
 local function AttachTextureMasks(frame)
@@ -104,21 +101,6 @@ local function EnsurePortraitMask(frame)
     frame.portraitMask = mask
 
     AttachTextureMasks(frame)
-end
-
--- Lazily create the PlayerModel. Only called in 3D mode. Not masked; the ring
--- crops it.
-local function EnsurePortraitModel(frame)
-    if not frame or frame.portraitModel or not frame.portraitShell then return end
-
-    frame.portraitModel = CreateFrame("PlayerModel", nil, frame.portraitShell)
-    frame.portraitModel:SetFrameLevel(frame.portraitShell:GetFrameLevel() + 2)
-    if frame.portraitModel.SetCamDistanceScale then
-        frame.portraitModel:SetCamDistanceScale(1.0)
-    end
-    if frame.portraitModel.SetPortraitZoom then
-        frame.portraitModel:SetPortraitZoom(1)
-    end
 end
 
 -- Overlay ring that crops the 3D model to a circle. It lives on its own frame
@@ -208,13 +190,27 @@ local function EnsureBannerArt(frame)
     frame.bannerRightLine:SetWidth(1)
 end
 
+-- Banner geometry for the frame's currently measured title, falling back to the
+-- registered single-line metrics. Dynamic values live on the frame, never on the
+-- shared metrics table: the live nameplate and the settings preview are two
+-- frames reading the same metrics with different titles in them.
+local function BannerSize(frame, m)
+    local width = frame.dynamicBannerWidth or m.bannerMinWidth or m.bannerWidth or 208
+    local height = frame.dynamicBannerHeight or m.bannerHeight or 64
+    return width, height
+end
+
 local function LayoutBanner(frame, m)
     if not frame or not frame.centerCol then return end
 
-    local bannerWidth = m.bannerWidth or m.frameWidth or 220
-    local bannerHeight = m.bannerHeight or 62
-    local tailWidth = m.bannerTailWidth or 42
+    local bannerWidth, bannerHeight = BannerSize(frame, m)
+
+    -- Scale the swallowtail with the banner so its notch keeps the same angle;
+    -- a tail stretched only vertically would splay open as the banner grows.
+    local baseHeight = m.bannerHeight or 64
+    local tailAspect = (m.bannerTailWidth or 42) / (baseHeight > 0 and baseHeight or 64)
     local tailHeight = m.bannerTailHeight or bannerHeight
+    local tailWidth = math.max(1, math.floor((tailHeight * tailAspect) + 0.5))
 
     frame.centerCol:ClearAllPoints()
     frame.centerCol:SetPoint("BOTTOM", frame, "BOTTOM", 0, m.bannerBottomInset or 8)
@@ -311,8 +307,10 @@ Layouts:RegisterLayout("portrait", {
         rowGap = 6,
         portraitRowHeight = 80,
         titleRowHeight = 24,
-        titleMinHeight = 20,
-        titleMaxHeight = 52,         -- room for the larger centred title
+        titleMinHeight = 24,         -- one line still fills the base banner
+        titleMaxLines = 3,           -- wrap past bannerMaxWidth rather than clipping
+        titleLineSpacing = 2,
+        titleInsetX = 10,            -- wrap margin per side, inside bannerInsetX
         titleFontSize = 16,          -- title size; reads existing font path
         gemColWidth = 18,
         gemTextGap = 6,
@@ -325,17 +323,28 @@ Layouts:RegisterLayout("portrait", {
         portraitRingTexture = nil,   -- optional override of PORTRAIT_RING
         portraitDiameter = 84,
         portraitTopInset = 6,
-        bannerWidth = 208,
-        bannerHeight = 64,
-        bannerTailWidth = 42,        -- swallowtail length beyond the rectangle
-        bannerTailHeight = nil,      -- defaults to bannerHeight
+        portraitBannerGap = 6,       -- portrait bottom to banner top
+        bannerWidth = 208,           -- base/one-line width; see bannerMinWidth
+        bannerMinWidth = 208,
+        bannerMaxWidth = 320,        -- widen this far before the title wraps
+        bannerHeight = 64,           -- base/one-line height, derived when longer
+        bannerInsetX = 8,            -- banner edge to the gem/rarity/title rows
+        bannerPadTop = 8,
+        bannerPadBottom = 8,
+        bannerTailWidth = 42,        -- swallowtail length at the base height
+        bannerTailHeight = nil,      -- defaults to the live banner height
         bannerBottomInset = 8,
+        frameWidthPad = 12,          -- hit area either side of the banner
         crownBaseScale = 0.20,
         crownMinSize = 24,
     },
 
     ApplyLayout = function(self, frame, m)
         local mode = ResolvePortraitMode(frame, m)
+        if self.LogPortraitEventFor then
+            self:LogPortraitEventFor(frame, "layout pass mode=%s override=%s",
+                tostring(mode), tostring(frame.portraitModeOverride))
+        end
         frame.portraitMode = mode -- cache resolved mode for LayoutPortrait
 
         if frame.editHintTop then
@@ -346,9 +355,12 @@ Layouts:RegisterLayout("portrait", {
         -- Build the ring for both 2D and 3D modes.
         EnsurePortraitRing(frame, m)
 
-        -- Only build the 3D model when we actually intend to use it.
+        -- Only build the 3D model when we actually intend to use it. It is
+        -- never masked; the ring crops it. Creation, the keep-on-hide flag, the
+        -- load callback and the camera all live on the registry so both layouts
+        -- share one implementation.
         if mode == PORTRAIT_MODE_3D then
-            EnsurePortraitModel(frame)
+            self:EnsurePortraitModel(frame)
         end
 
         EnsurePortraitMask(frame)
@@ -365,39 +377,50 @@ Layouts:RegisterLayout("portrait", {
             frame:SetBackdropBorderColor(0, 0, 0, 0)
         end
 
-        local frameHeight = m.frameHeight or 168
-        frame:SetSize(m.frameWidth, frameHeight)
+        local bannerWidth = BannerSize(frame, m)
+        frame:SetSize(
+            frame.dynamicFrameWidth or (bannerWidth + (m.frameWidthPad or 12)),
+            frame.dynamicFrameHeight or m.frameHeight or 168)
         LayoutBanner(frame, m)
+
+        local insetX = m.bannerInsetX or 8
+        local padTop = m.bannerPadTop or 8
 
         if frame.leftCol then
             frame.leftCol:ClearAllPoints()
-            frame.leftCol:SetPoint("TOPLEFT", frame.centerCol, "TOPLEFT", 8, -8)
-            frame.leftCol:SetPoint("BOTTOMLEFT", frame.centerCol, "TOPLEFT", 8, -(8 + m.row1Height))
+            frame.leftCol:SetPoint("TOPLEFT", frame.centerCol, "TOPLEFT", insetX, -padTop)
+            frame.leftCol:SetPoint("BOTTOMLEFT", frame.centerCol, "TOPLEFT", insetX, -(padTop + m.row1Height))
             frame.leftCol:SetWidth(m.gemColWidth)
         end
 
         if frame.rarityRow then
             frame.rarityRow:ClearAllPoints()
-            frame.rarityRow:SetPoint("TOPLEFT", frame.centerCol, "TOPLEFT", 8 + m.gemColWidth + m.gemTextGap, -8)
-            frame.rarityRow:SetPoint("TOPRIGHT", frame.centerCol, "TOPRIGHT", -8, -8)
+            frame.rarityRow:SetPoint("TOPLEFT", frame.centerCol, "TOPLEFT", insetX + m.gemColWidth + m.gemTextGap, -padTop)
+            frame.rarityRow:SetPoint("TOPRIGHT", frame.centerCol, "TOPRIGHT", -insetX, -padTop)
             frame.rarityRow:SetHeight(m.row1Height)
         end
 
         -- Title row spans the full banner width (independent of the rarity row's
-        -- gem inset) so the centred title can use the whole space.
+        -- gem inset) so the centred title can use the whole space. Top and bottom
+        -- are both anchored, and the banner height was derived from the measured
+        -- title, so the row comes out exactly that tall.
         if frame.titleRow then
-            local titleHeight = frame.dynamicTitleHeight or m.titleMinHeight or m.titleRowHeight or 20
-            local titleTopY = -(8 + m.row1Height + 6) -- below the rarity row + gap
+            local titleTopY = -(padTop + m.row1Height + (m.rowGap or 6))
             frame.titleRow:ClearAllPoints()
-            frame.titleRow:SetPoint("TOPLEFT", frame.centerCol, "TOPLEFT", 8, titleTopY)
-            frame.titleRow:SetPoint("TOPRIGHT", frame.centerCol, "TOPRIGHT", -8, titleTopY)
-            frame.titleRow:SetPoint("BOTTOM", frame.centerCol, "BOTTOM", 0, 8)
-            frame.titleRow:SetHeight(titleHeight)
+            frame.titleRow:SetPoint("TOPLEFT", frame.centerCol, "TOPLEFT", insetX, titleTopY)
+            frame.titleRow:SetPoint("TOPRIGHT", frame.centerCol, "TOPRIGHT", -insetX, titleTopY)
+            frame.titleRow:SetPoint("BOTTOM", frame.centerCol, "BOTTOM", 0, m.bannerPadBottom or 8)
         end
 
         if frame.titleText then
             ApplyTitleFont(frame, m)
             frame.titleText:SetWordWrap(true)
+            if frame.titleText.SetMaxLines then
+                frame.titleText:SetMaxLines(math.max(1, m.titleMaxLines or 3))
+            end
+            if frame.titleText.SetSpacing then
+                frame.titleText:SetSpacing(m.titleLineSpacing or 0)
+            end
             frame.titleText:SetJustifyH("CENTER")
             frame.titleText:SetJustifyV("MIDDLE")
             frame.titleText:SetShadowColor(0.08, 0.05, 0.01, 0.95)
@@ -474,21 +497,18 @@ Layouts:RegisterLayout("portrait", {
             frame.portraitModel:SetPoint("CENTER", frame.portraitShell, "CENTER", 0, 0)
             frame.portraitModel:SetSize(portraitSize, portraitSize)
 
-            if frame.portraitUnit and frame.portraitModel.SetUnit then
-                local ok = pcall(frame.portraitModel.SetUnit, frame.portraitModel, frame.portraitUnit)
-                if not ok then
-                    pcall(frame.portraitModel.SetUnit, frame.portraitModel, "player")
-                end
-                if frame.portraitModel.RefreshUnit then
-                    pcall(frame.portraitModel.RefreshUnit, frame.portraitModel)
-                end
-            end
+            self:ApplyPortraitLayering(frame)
+            self:SeatPortraitModel(frame)
+            self:RefreshPortraitCamera(frame)
 
             LayoutPortraitRing(frame, m, true)
         else
             -- 2D masked portrait texture. The mask is anchored to portraitShell,
             -- so size the texture to the shell for the circle to read cleanly.
-            if frame.portraitModel then frame.portraitModel:Hide() end
+            if frame.portraitModel then
+                frame.portraitModel:Hide()
+                self:ReleasePortraitModel(frame)
+            end
             LayoutPortraitRing(frame, m, false)
             if frame.portrait then
                 frame.portrait:Show()
@@ -498,31 +518,50 @@ Layouts:RegisterLayout("portrait", {
                     self:ApplyPortraitTexture(frame.portrait, frame.portraitUnit, "portrait", frame.portraitShell)
                 end
             end
+            -- Keep the ring visible in 2D mode as decorative framing, not just 3D crop support.
             LayoutPortraitRing(frame, m, true)
         end
     end,
 
+    -- Widen the banner to the title first, and only wrap once it has reached
+    -- bannerMaxWidth. Both the banner and the card are then re-derived from the
+    -- number of lines, so nothing is ever clipped by a fixed height.
     SizePill = function(self, frame, m)
         if not frame or not frame.titleText or not frame.rarityText then return end
 
         ApplyTitleFont(frame, m) -- measure with the final (larger) font
 
-        local edgeX = 16
-        local titleWidth = math.max(80, (m.bannerWidth or m.frameWidth or 220) - (edgeX * 2))
-        local titleMinHeight = m.titleMinHeight or m.titleRowHeight or 20
-        local titleMaxHeight = m.titleMaxHeight or 56
+        local insetX = m.titleInsetX or 10
+        local minWidth = m.bannerMinWidth or m.bannerWidth or 208
+        local maxWidth = math.max(minWidth, m.bannerMaxWidth or minWidth)
+        local maxLines = math.max(1, m.titleMaxLines or 3)
+        local spacing = m.titleLineSpacing or 0
+        local text = frame.titleText:GetText()
 
-        frame.titleText:SetWordWrap(false)
-        frame.titleText:SetWidth(titleWidth)
+        -- Pass one: the width the title would like if it never had to wrap.
+        local natural, lineHeight = self:MeasureText(frame, frame.titleText, text, 0, 1)
+        local bannerWidth = math.max(minWidth, math.min(maxWidth, math.ceil(natural + (insetX * 2))))
 
-        local singleWidth = frame.titleText:GetStringWidth() or titleWidth
-        local lineHeight = math.max(12, math.ceil(frame.titleText:GetStringHeight() or titleMinHeight))
-        local lines = math.max(1, math.ceil(singleWidth / titleWidth))
-        local measured = lines * lineHeight
-        frame.dynamicTitleHeight = math.max(titleMinHeight, math.min(titleMaxHeight, measured))
+        -- Pass two: how many lines it actually takes at the width it was given.
+        local wrapWidth = math.max(40, bannerWidth - (insetX * 2))
+        local _, _, lines = self:MeasureText(frame, frame.titleText, text, wrapWidth, maxLines)
 
-        frame.titleText:SetWordWrap(true)
+        local titleHeight = math.max(m.titleMinHeight or m.titleRowHeight or 24,
+            self:TextBlockHeight(lines, lineHeight, spacing))
 
+        local bannerHeight = (m.bannerPadTop or 8) + (m.row1Height or 18) + (m.rowGap or 6)
+            + titleHeight + (m.bannerPadBottom or 8)
+
+        -- titleHeight itself is not stored: the title row spans from under the
+        -- rarity row to the banner's bottom padding, so the banner height carries it.
+        frame.dynamicTitleLines = lines
+        frame.dynamicBannerWidth = bannerWidth
+        frame.dynamicBannerHeight = bannerHeight
+        frame.dynamicFrameWidth = bannerWidth + (m.frameWidthPad or 12)
+        frame.dynamicFrameHeight = (m.portraitTopInset or 6) + (m.portraitDiameter or 84)
+            + (m.portraitBannerGap or 6) + bannerHeight + (m.bannerBottomInset or 8)
+
+        -- Force portrait metrics during measurement so wrapping stays deterministic.
         self:ApplyLayoutToFrame(frame, { layout = "portrait" })
         self:LayoutTargetPortrait(frame)
     end,

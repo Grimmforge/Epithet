@@ -152,14 +152,21 @@ function TitleIndex:Build()
 
     local recordsByID = ns.TitleData and ns.TitleData.recordsByID
     if recordsByID then
-        for titleID, record in pairs(recordsByID) do
+        -- Index the RECORD's own id, never the key being iterated. Scan collapses
+        -- API-duplicate titles (Grunt is both 16 and 169) onto one record that
+        -- every alias id maps to, so the iterated key is whichever duplicate
+        -- pairs() happens to reach first — an order that can differ between
+        -- sessions. Since the spotting log is keyed by title id, drifting between
+        -- 16 and 169 would log one title as two and inflate the spotted count.
+        -- record.titleID is always the canonical row, so resolution is stable.
+        for _, record in pairs(recordsByID) do
             if record and record.titleID then
                 -- TitleData:Scan() already fetched and classified this string;
                 -- reuse it instead of a second GetTitleName() + parse pass.
-                local raw = record.raw or (GetTitleName and GetTitleName(titleID))
+                local raw = record.raw or (GetTitleName and GetTitleName(record.titleID))
                 local fragment = ExtractFragment(raw)
                 if fragment and fragment ~= "" and not index[fragment] then
-                    index[fragment] = titleID
+                    index[fragment] = record.titleID
                 end
             end
         end

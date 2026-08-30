@@ -10,8 +10,10 @@ local Layouts = ns.Layouts
 local UnitName = UnitName
 local UnitPVPName = UnitPVPName
 local UnitFullName = UnitFullName
+local UnitGUID = UnitGUID
 local UnitExists = UnitExists
 local UnitIsPlayer = UnitIsPlayer
+local UnitIsUnit = UnitIsUnit
 local CreateFrame = CreateFrame
 local GetCursorPosition = GetCursorPosition
 local GetTime = GetTime
@@ -59,6 +61,8 @@ ns.Strupper = ns.Strupper or LocaleUpper
 
 local WHITE = "Interface\\Buttons\\WHITE8X8"
 local NAMEPLATE_FADE_OUT_DURATION = 0.75
+-- Gap between the bottom of the nameplate and the top of its hover tooltip.
+local TARGET_TOOLTIP_GAP = 6
 
 local SocialLayer = {}
 ns.SocialLayer = SocialLayer
@@ -139,10 +143,52 @@ function SocialLayer:SetTargetFrameInteractionEnabled(enabled)
 
     frame._epithetInteractionEnabled = enabled
     frame:EnableMouse(enabled)
+
+    -- A nameplate that fades out under the cursor stops taking mouse input, so
+    -- OnLeave is not guaranteed to fire. Close the hint explicitly.
+    if not enabled then
+        self:HideTargetTooltip()
+    end
+end
+
+-- Hover hint for the LOCKED nameplate. In edit mode the pills above and below
+-- already spell the drag/lock controls out, so a tooltip would only repeat them
+-- (and trail the cursor while dragging) — hence the isUnlocked bail.
+function SocialLayer:ShowTargetTooltip(frame)
+    frame = frame or self.targetFrame
+    if not (GameTooltip and frame and frame.IsShown and frame:IsShown()) then return end
+    if frame.isUnlocked then return end
+
+    -- ANCHOR_NONE plus an explicit point rather than ANCHOR_BOTTOM: this pins the
+    -- tooltip squarely under the plate with a real gap, instead of butting it
+    -- against the bottom edge. GameTooltip is clamped to screen, so it still
+    -- flips itself back into view when the plate sits low.
+    GameTooltip:SetOwner(frame, "ANCHOR_NONE")
+    GameTooltip:ClearAllPoints()
+    GameTooltip:SetPoint("TOP", frame, "BOTTOM", 0, -TARGET_TOOLTIP_GAP)
+    GameTooltip:AddLine(L["SOCIAL_LAYER"] or "Title Spotting", 1, 1, 1)
+    GameTooltip:AddLine(L["SOCIAL_TARGET_TOOLTIP_LEFT"] or "Left-click to view this title in Epithet.", 0.7, 0.7, 0.7)
+    GameTooltip:AddLine(L["SOCIAL_TARGET_TOOLTIP_RIGHT"] or "Right-click to unlock and move this nameplate.", 0.7, 0.7, 0.7)
+    GameTooltip:Show()
+end
+
+-- Only ever closes a tooltip this frame owns, so it can be called from the fade
+-- and hide paths without stealing someone else's.
+function SocialLayer:HideTargetTooltip(frame)
+    frame = frame or self.targetFrame
+    if not (GameTooltip and frame and GameTooltip.IsOwned) then return end
+    -- IsShown guard keeps this cheap and idempotent: the fade path below calls it
+    -- every OnUpdate tick, and an owner stays set after a Hide.
+    if GameTooltip:IsShown() and GameTooltip:IsOwned(frame) then
+        GameTooltip:Hide()
+    end
 end
 
 function SocialLayer:ResetNameplateFade()
     self.fadeStartTime = nil
+    self.fadeHoldReleased = false
+    self.fadeComplete = false
+    self.fadeKey = nil
     if self.targetFrame and self.targetFrame.SetAlpha then
         self.targetFrame:SetAlpha(1)
     end
@@ -153,12 +199,29 @@ function SocialLayer:ResetNameplateFade()
     self:SetBlizzardTargetNameAlpha(1)
 end
 
-function SocialLayer:StartNameplateFade(profile)
+-- Begins the countdown for `key`, a stable identity for what the plate is
+-- currently showing.
+--
+-- RefreshTargetFrame is the only caller and it runs on plenty of incidental
+-- events (UNIT_PORTRAIT_UPDATE, UNIT_NAME_UPDATE, combat entry/exit, roster
+-- churn), none of which mean "the player is looking at something new". Restarting
+-- on those rewound the countdown, so a target generating a steady trickle of unit
+-- events kept its plate on screen indefinitely. A countdown that is already
+-- running — or has already finished — for this same key is therefore left alone;
+-- only a genuinely new key restarts it.
+function SocialLayer:StartNameplateFade(profile, key)
     if not (profile and profile.fadeNameplates) then
         self:ResetNameplateFade()
         return
     end
 
+    if key == self.fadeKey and (self.fadeStartTime or self.fadeComplete) then
+        return
+    end
+
+    self.fadeKey = key
+    self.fadeComplete = false
+    self.fadeHoldReleased = false
     self.fadeStartTime = (GetTime and GetTime()) or 0
     if self.targetFrame and self.targetFrame.SetAlpha then
         self.targetFrame:SetAlpha(1)
@@ -170,13 +233,60 @@ function SocialLayer:StartNameplateFade(profile)
     self:SetBlizzardTargetNameAlpha(1)
 end
 
+-- True only when the plate is the frame the cursor is actually on. Falls back to
+-- the geometric test on any client that lacks IsMouseMotionFocus, paired there
+-- with an explicit shown/mouse-enabled check so a hidden or input-disabled plate
+-- can never report itself hovered.
+function SocialLayer:IsTargetFrameHovered()
+    local frame = self.targetFrame
+    if not frame then return false end
+    if not (frame.IsShown and frame:IsShown()) then return false end
+
+    if frame.IsMouseMotionFocus then
+        return frame:IsMouseMotionFocus() and true or false
+    end
+
+    if frame._epithetInteractionEnabled == false then return false end
+    return (frame.IsMouseOver and frame:IsMouseOver()) and true or false
+end
+
+-- A left-click has done the plate's job: the browser is now open with that title
+-- loaded, so the plate should see itself out from here no matter where the cursor
+-- sits. Releasing the hover hold is what makes that stick, since the browser opens
+-- over the plate and leaves the cursor sitting on top of it.
+function SocialLayer:DismissAfterTargetClick()
+    if self.fadeComplete or not self.fadeStartTime then
+        return
+    end
+
+    self.fadeHoldReleased = true
+    self.fadeStartTime = (GetTime and GetTime()) or 0
+end
+
 function SocialLayer:UpdateNameplateFade(profile)
     if not (profile and profile.fadeNameplates and self.fadeStartTime and GetTime) then
         return
     end
 
+    local now = GetTime()
+
+    -- Hover holds the countdown at zero, polled rather than driven by
+    -- OnEnter/OnLeave: a window opening over the plate swallows the leave event,
+    -- and every event-driven attempt at this stranded the plate on screen for good
+    -- when one went missing. Polling has no state to get stuck in.
+    --
+    -- IsMouseMotionFocus, NOT IsMouseOver: the latter is purely geometric, so it
+    -- reports true whenever the cursor is inside the plate's rectangle even when
+    -- the plate is occluded or has mouse input disabled. That holds the countdown
+    -- at zero indefinitely — which is why nothing was fading. Motion focus is the
+    -- frame the cursor is genuinely on, so it goes false the instant another frame
+    -- covers the plate.
+    if not self.fadeHoldReleased and self:IsTargetFrameHovered() then
+        self.fadeStartTime = now
+    end
+
     local delay = ClampFadeDelay(profile.fadeDuration)
-    local elapsed = GetTime() - self.fadeStartTime
+    local elapsed = now - self.fadeStartTime
 
     if elapsed <= delay then
         if self.targetFrame and self.targetFrame.SetAlpha then
@@ -189,6 +299,13 @@ function SocialLayer:UpdateNameplateFade(profile)
         self:SetBlizzardTargetNameAlpha(1)
         return
     end
+
+    -- Past the delay, so the plate is now dismissing itself: drop the hover hint
+    -- with it. GameTooltip is parented to UIParent rather than to the plate, so it
+    -- does not inherit this alpha ramp — left alone it sits at full opacity over an
+    -- increasingly invisible nameplate, and outlives it completely whenever the
+    -- cursor never leaves (no OnLeave fires, e.g. right after a left-click).
+    self:HideTargetTooltip()
 
     local progress = (elapsed - delay) / NAMEPLATE_FADE_OUT_DURATION
     if progress < 0 then progress = 0 end
@@ -205,9 +322,13 @@ function SocialLayer:UpdateNameplateFade(profile)
     end
 
     if alpha <= 0.01 then
-        -- Keep the frame hidden to input once fully faded.
+        -- Keep the frame hidden to input once fully faded. fadeComplete keeps it
+        -- that way: without it, the next incidental refresh would find a nil
+        -- fadeStartTime and start the whole countdown again on a plate the player
+        -- has already watched dismiss itself.
         self:SetTargetFrameInteractionEnabled(false)
         self.fadeStartTime = nil
+        self.fadeComplete = true
     else
         self:SetTargetFrameInteractionEnabled(true)
     end
@@ -246,6 +367,16 @@ end
 
 function SocialLayer:GetRecordForUnit(unit)
     if not unit or not UnitExists or not UnitExists(unit) then return nil end
+    if UnitIsUnit and UnitIsUnit(unit, "player") then
+        local profile = GetProfile()
+        if not (profile and profile.showSelfTargetNameplate == true) then
+            return nil
+        end
+    end
+    -- Titles are a player-only concept. Without this, an NPC/critter/pet whose
+    -- name happens to split on whitespace (e.g. "Light-Infused Broom") gets its
+    -- trailing word misread as a suffix title by ParseDisplay below.
+    if not UnitIsPlayer or not UnitIsPlayer(unit) then return nil end
     local displayName = UnitPVPName and UnitPVPName(unit) or nil
     local targetFrameText = nil
     if unit == "target" and TargetFrameName and TargetFrameName.GetText then
@@ -569,6 +700,11 @@ function SocialLayer:EnsureTargetFrame()
         end
 
         if button == "LeftButton" and not self_.isUnlocked then
+            -- The hint has done its job and the browser is now the focus. Clearing
+            -- it here rather than waiting for OnLeave matters because the cursor
+            -- usually stays on the plate after the click, so no OnLeave follows.
+            SocialLayer:HideTargetTooltip(self_)
+            SocialLayer:DismissAfterTargetClick()
             SocialLayer:OpenTargetInEpithet()
         end
     end)
@@ -577,8 +713,17 @@ function SocialLayer:EnsureTargetFrame()
             SocialLayer:EndTargetDrag(self_)
         end
     end)
+    -- Tooltip only. The fade hold is polled in UpdateNameplateFade rather than
+    -- driven from here, because these two events are exactly what goes missing.
+    frame:SetScript("OnEnter", function(self_)
+        SocialLayer:ShowTargetTooltip(self_)
+    end)
+    frame:SetScript("OnLeave", function(self_)
+        SocialLayer:HideTargetTooltip(self_)
+    end)
     frame:SetScript("OnHide", function(self_)
         self_.isDragging = false
+        SocialLayer:HideTargetTooltip(self_)
         if self_.crownFrame then
             self_.crownFrame:Hide()
         end
@@ -692,6 +837,15 @@ function SocialLayer:ApplyTargetDragState(frame, profile)
             frame.editHintBottom:Hide()
         end
     end
+
+    -- Right-clicking to toggle edit mode happens with the cursor already on the
+    -- frame, so no OnEnter/OnLeave follows to correct the hint. Swap it here
+    -- instead: the pills take over on unlock, the tooltip returns on lock.
+    if frame.isUnlocked then
+        self:HideTargetTooltip()
+    elseif self:IsTargetFrameHovered() then
+        self:ShowTargetTooltip(frame)
+    end
 end
 
 function SocialLayer:SetTargetPillPlaceholder(frame)
@@ -724,6 +878,7 @@ function SocialLayer:AnchorTargetFrame(frame, profile)
 end
 
 function SocialLayer:RefreshTargetFrame()
+    -- Central sync path: apply suppression/layout, then choose live target, settings placeholder, or hidden state.
     local profile = GetProfile()
     local frame = self:EnsureTargetFrame()
     if profile and not self:IsValidLayoutKey(profile.layout) then
@@ -751,9 +906,17 @@ function SocialLayer:RefreshTargetFrame()
         self:AnchorTargetFrame(frame, profile)
         self:SetTargetPillContent(frame, titleText, quality, rarityText)
         frame:Show()
-        self:StartNameplateFade(profile)
+        -- GUID plus title so the countdown restarts for a new target, and also if
+        -- the current one swaps their title, but not for anything else.
+        self:StartNameplateFade(profile, table.concat({
+            (UnitGUID and UnitGUID("target")) or "",
+            tostring(record.titleID or record.titleText or ""),
+        }, "|"))
     else
-        local settingsOpen = ns.Settings and ns.Settings.panel and ns.Settings.panel.IsShown and ns.Settings.panel:IsShown()
+        -- The target-unlock/reset controls live on the Title Spotting sub-tab
+        -- specifically, not the main Epithet page, so the placeholder pill
+        -- should only appear while that sub-tab is the one showing.
+        local settingsOpen = ns.Settings and ns.Settings.titleSpottingPanel and ns.Settings.titleSpottingPanel.IsShown and ns.Settings.titleSpottingPanel:IsShown()
         if profile.targetUnlock and settingsOpen then
             self:AnchorTargetFrame(frame, profile)
             self:SetTargetPillPlaceholder(frame)
@@ -799,6 +962,7 @@ end
 function SocialLayer:UpdateTargetDrag(frame)
     local profile = GetProfile()
     if not frame or not profile then return end
+    -- Cursor positions are physical pixels; convert to UIParent units for scale-safe anchor offsets.
     local scale = UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale() or 1
     local cx, cy = GetCursorPosition()
     cx = cx / scale

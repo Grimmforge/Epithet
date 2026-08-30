@@ -12,23 +12,24 @@ local C_Timer = C_Timer
 local CreateFrame = CreateFrame
 local GetAddOnMetadata = GetAddOnMetadata
 local UIParent = UIParent
+local StaticPopupDialogs = StaticPopupDialogs
+local StaticPopup_Show = StaticPopup_Show
 local gsub = string.gsub
 local match = string.match
 local tostring = tostring
 
--- The dialogue used to be rendered by handing a hand-built HTML string to a
--- SimpleHTML widget, but that widget only parses markup if the whole document
--- is "well-formed" by its own undocumented rules - anything it doesn't like
--- (a bare quote character was one culprit) makes it silently fall back to
--- showing the raw tags as text, with no error to debug against. Rendering
--- each block as a real FontString/Texture below sidesteps that whole class of
--- bug: there's no markup to get wrong, just plain text (which can freely
--- contain quotes, apostrophes, whatever) plus WoW's native |cff..|r colour
--- codes for emphasis.
+local function Trim(value)
+    local s = tostring(value or "")
+    s = s:gsub("^%s+", "")
+    s = s:gsub("%s+$", "")
+    return s
+end
 
--- Image lines may optionally pin a display size with a trailing "=WIDTHxHEIGHT"
--- (e.g. "![alt](path =460x230)"), so non-square art doesn't get squashed into
--- the default 96x96 icon box. Falls back to 96x96 when no size is given.
+-- The dialog body is rendered as native WoW widgets (FontString/Texture/Button)
+-- instead of HTML markup.
+
+-- Parses optional image size suffixes from markdown image directives.
+-- Example: "![alt](path =460x230)"; defaults to 96x96 if no size is present.
 local DEFAULT_IMAGE_SIZE = 96
 
 local function ParseImageDirective(raw)
@@ -39,8 +40,7 @@ local function ParseImageDirective(raw)
     return path, tonumber(w) or DEFAULT_IMAGE_SIZE, tonumber(h) or DEFAULT_IMAGE_SIZE
 end
 
--- **bold** and *emphasis* become WoW colour-code runs instead of HTML tags -
--- there's no italic font loaded, so emphasis just gets a different tint.
+-- Converts markdown-like inline emphasis to WoW color-code runs.
 local BOLD_COLOR = "fff6e2a6"
 local EMPHASIS_COLOR = "ffe8c873"
 
@@ -51,10 +51,8 @@ local function RenderInlineColor(value)
     return text
 end
 
--- Turns the markdown-ish body text into a flat list of layout blocks. Blank
--- lines in the source are ignored entirely - spacing between blocks is a
--- fixed property of the block types involved (see BLOCK_STYLE), not
--- something content authors need to remember to add.
+-- Parses markdown-like body text into a flat list of typed render blocks.
+-- Supports headings, bullets, links, images, and paragraphs; blank lines are skipped.
 local function BuildBlocks(body)
     local src = tostring(body or "")
     local blocks = {}
@@ -63,7 +61,11 @@ local function BuildBlocks(body)
         if not line:match("^%s*$") then
             local h2 = match(line, "^%s*##%s+(.+)$")
             local h1 = (not h2) and match(line, "^%s*#%s+(.+)$")
-            local bullet = (not h2 and not h1) and match(line, "^%s*%*%s+(.+)$")
+            local linkLabel, linkURL
+            if not h2 and not h1 then
+                linkLabel, linkURL = match(line, "^%s*[%*%-]?%s*%[(.-)%]%((.-)%)%s*$")
+            end
+            local bullet = (not h2 and not h1 and not linkLabel) and match(line, "^%s*[%*%-]%s+(.+)$")
             local imageDirective = match(line, "^%s*!%[[^%]]*%]%((.+)%)%s*$")
 
             if imageDirective and imageDirective ~= "" then
@@ -73,6 +75,8 @@ local function BuildBlocks(body)
                 blocks[#blocks + 1] = { type = "h2", text = RenderInlineColor(h2) }
             elseif h1 then
                 blocks[#blocks + 1] = { type = "h1", text = RenderInlineColor(h1) }
+            elseif linkLabel then
+                blocks[#blocks + 1] = { type = "link", text = RenderInlineColor(linkLabel), url = Trim(linkURL) }
             elseif bullet then
                 blocks[#blocks + 1] = { type = "bullet", text = RenderInlineColor(bullet) }
             else
@@ -84,21 +88,43 @@ local function BuildBlocks(body)
     return blocks
 end
 
--- Layout constants: content width matches the scroll frame's inner width
--- (760 dialogue - 18 left inset - 38 right inset - scrollbar allowance), and
--- each block type carries its own font/colour plus the gap it always gets
--- above it, so headings and images are guaranteed breathing room regardless
--- of how the source markdown is formatted.
+-- Detects whether text includes UTF-8 Cyrillic code points.
+local function ContainsCyrillic(text)
+    return text ~= nil and text:find("[\208-\211][\128-\191]") ~= nil
+end
+
+-- Applies the bundled Unicode font only when the block text contains Cyrillic.
+local function ApplyBlockFont(fontLike, path, size, text)
+    if T and T.ApplyUnicodeSansFont and ContainsCyrillic(text) then
+        T.ApplyUnicodeSansFont(fontLike, size)
+    else
+        fontLike:SetFont(path, size, "")
+    end
+end
+
+-- Layout constants for content width, list indentation, and image spacing.
 local BODY_WIDTH = 690
 local BULLET_INDENT = 14
 local IMAGE_GAP_BEFORE = 14
 
+-- Link colors for default and hover states.
+local LINK_COLOR = { 0.45, 0.73, 1.0 }
+local LINK_HOVER_COLOR = { 0.68, 0.86, 1.0 }
+
+-- Per-block typography and spacing rules used by RenderBody.
+-- gapAfter provides explicit trailing space for heading blocks.
 local BLOCK_STYLE = {
-    h1 = { font = "Fonts\\FRIZQT__.TTF", size = 18, color = { 0.96, 0.89, 0.65 }, gapBefore = 18 },
-    h2 = { font = "Fonts\\FRIZQT__.TTF", size = 14, color = { 0.90, 0.80, 0.52 }, gapBefore = 16 },
+    h1 = { font = "Fonts\\FRIZQT__.TTF", size = 18, color = { 0.96, 0.89, 0.65 }, gapBefore = 18, gapAfter = 10 },
+    h2 = { font = "Fonts\\FRIZQT__.TTF", size = 14, color = { 0.90, 0.80, 0.52 }, gapBefore = 16, gapAfter = 8 },
     p = { font = "Fonts\\FRIZQT__.TTF", size = 12, color = { 0.86, 0.82, 0.74 }, gapBefore = 10 },
     bullet = { font = "Fonts\\FRIZQT__.TTF", size = 12, color = { 0.86, 0.82, 0.74 }, gapBefore = 10, gapBeforeSameType = 4 },
+    link = { font = "Fonts\\FRIZQT__.TTF", size = 12, color = LINK_COLOR, gapBefore = 10, gapBeforeSameType = 4 },
 }
+
+-- List-like blocks share indentation and compact same-type vertical spacing.
+local function IsListItem(blockType)
+    return blockType == "bullet" or blockType == "link"
+end
 
 function WhatsNew:AcquireTextWidget(index)
     self.textWidgets = self.textWidgets or {}
@@ -123,16 +149,46 @@ function WhatsNew:AcquireImageWidget(index)
     return tex
 end
 
--- Lays out one block per pooled widget, top to bottom, and returns the total
--- content height so the caller can size the scroll child. Widgets are pooled
--- and reused across calls since a FontString/Texture can't be destroyed, only
--- hidden; any left over from a previous, longer body get hidden at the end.
+-- Links use pooled Button widgets (with a FontString label) so rows are clickable.
+function WhatsNew:AcquireLinkWidget(index)
+    self.linkWidgets = self.linkWidgets or {}
+    local btn = self.linkWidgets[index]
+    if not btn then
+        btn = CreateFrame("Button", nil, self.dialogContent)
+        btn:EnableMouse(true)
+
+        local label = btn:CreateFontString(nil, "ARTWORK")
+        label:SetJustifyH("LEFT")
+        label:SetJustifyV("TOP")
+        label:SetWordWrap(true)
+        label:SetPoint("TOPLEFT", btn, "TOPLEFT", 0, 0)
+        label:SetPoint("TOPRIGHT", btn, "TOPRIGHT", 0, 0)
+        btn.label = label
+
+        btn:SetScript("OnEnter", function(self_)
+            self_.label:SetTextColor(LINK_HOVER_COLOR[1], LINK_HOVER_COLOR[2], LINK_HOVER_COLOR[3], 1)
+        end)
+        btn:SetScript("OnLeave", function(self_)
+            self_.label:SetTextColor(LINK_COLOR[1], LINK_COLOR[2], LINK_COLOR[3], 1)
+        end)
+        btn:SetScript("OnClick", function(self_)
+            self:ShowLinkPopup(self_.url)
+        end)
+
+        self.linkWidgets[index] = btn
+    end
+    return btn
+end
+
+-- Lays out parsed blocks top-to-bottom, reusing pooled widgets, and returns
+-- total rendered height for sizing the scroll child.
 function WhatsNew:RenderBody(rawBody)
     self.textWidgets = self.textWidgets or {}
     self.imageWidgets = self.imageWidgets or {}
+    self.linkWidgets = self.linkWidgets or {}
 
     local blocks = BuildBlocks(rawBody)
-    local textIndex, imageIndex = 0, 0
+    local textIndex, imageIndex, linkIndex = 0, 0, 0
     local y = 0
     local prevType = nil
 
@@ -150,23 +206,45 @@ function WhatsNew:RenderBody(rawBody)
         else
             local style = BLOCK_STYLE[block.type]
             local gap = style.gapBefore
-            if block.type == "bullet" and prevType == "bullet" then
+            if IsListItem(block.type) and IsListItem(prevType) then
                 gap = style.gapBeforeSameType
             end
             y = y + gap
 
-            textIndex = textIndex + 1
-            local fs = self:AcquireTextWidget(textIndex)
-            fs:ClearAllPoints()
-            local indent = (block.type == "bullet") and BULLET_INDENT or 0
-            fs:SetPoint("TOPLEFT", self.dialogContent, "TOPLEFT", indent, -y)
-            fs:SetWidth(BODY_WIDTH - indent)
-            fs:SetFont(style.font, style.size, "")
-            fs:SetTextColor(style.color[1], style.color[2], style.color[3], 1)
-            fs:SetText(block.type == "bullet" and ("\226\128\162  " .. block.text) or block.text)
-            fs:Show()
+            local indent = IsListItem(block.type) and BULLET_INDENT or 0
+            local width = BODY_WIDTH - indent
 
-            y = y + (fs:GetStringHeight() or (style.size + 4))
+            if block.type == "link" then
+                linkIndex = linkIndex + 1
+                local btn = self:AcquireLinkWidget(linkIndex)
+                btn:ClearAllPoints()
+                btn:SetPoint("TOPLEFT", self.dialogContent, "TOPLEFT", indent, -y)
+                btn:SetWidth(width)
+                ApplyBlockFont(btn.label, style.font, style.size, block.text)
+                btn.label:SetTextColor(style.color[1], style.color[2], style.color[3], 1)
+                btn.label:SetText("\226\128\162  " .. block.text)
+                btn.url = block.url
+                btn:SetHeight(math.max(style.size + 4, btn.label:GetStringHeight() or 0))
+                btn:Show()
+
+                y = y + btn:GetHeight()
+            else
+                textIndex = textIndex + 1
+                local fs = self:AcquireTextWidget(textIndex)
+                fs:ClearAllPoints()
+                fs:SetPoint("TOPLEFT", self.dialogContent, "TOPLEFT", indent, -y)
+                fs:SetWidth(width)
+                ApplyBlockFont(fs, style.font, style.size, block.text)
+                fs:SetTextColor(style.color[1], style.color[2], style.color[3], 1)
+                fs:SetText(block.type == "bullet" and ("\226\128\162  " .. block.text) or block.text)
+                fs:Show()
+
+                y = y + (fs:GetStringHeight() or (style.size + 4))
+            end
+
+            if style.gapAfter then
+                y = y + style.gapAfter
+            end
         end
 
         prevType = block.type
@@ -177,6 +255,9 @@ function WhatsNew:RenderBody(rawBody)
     end
     for i = imageIndex + 1, #self.imageWidgets do
         self.imageWidgets[i]:Hide()
+    end
+    for i = linkIndex + 1, #self.linkWidgets do
+        self.linkWidgets[i]:Hide()
     end
 
     return y
@@ -200,13 +281,12 @@ function WhatsNew:GetContentForVersion(version)
     return container[version]
 end
 
--- A What's New field (title/body) may be either a plain string (single language)
--- or a table keyed by locale, e.g. { enUS = [[...]], ruRU = [[...]] }. Resolve to
--- the active locale, falling back to English so a version that hasn't been
--- translated yet still renders rather than showing blank.
+-- Resolves localized content fields.
+-- Accepts either a direct string or a locale-keyed table and falls back to
+-- enUS, enGB, default, then empty string.
 function WhatsNew:LocalizeField(value)
     if type(value) == "table" then
-        local locale = (GetLocale and GetLocale()) or "enUS"
+        local locale = ns.activeLocale or (GetLocale and GetLocale()) or "enUS"
         return value[locale] or value.enUS or value.enGB or value.default or ""
     end
     return value
@@ -223,6 +303,7 @@ function WhatsNew:EnsureState()
 end
 
 function WhatsNew:GetStateForVersion(version, create)
+    -- create=true initializes missing per-version state on demand.
     local state = self:EnsureState()
     local byVersion = state.byVersion
     local item = byVersion[version]
@@ -263,6 +344,41 @@ function WhatsNew:DismissCurrentVersion()
     state.hasNew = false
 end
 
+-- Shows a copy-friendly StaticPopup for a URL clicked from a link block.
+-- The popup definition is registered lazily on first use.
+function WhatsNew:ShowLinkPopup(url)
+    if not url or url == "" then
+        return
+    end
+
+    if not StaticPopupDialogs["EPITHET_WHATSNEW_LINK"] then
+        StaticPopupDialogs["EPITHET_WHATSNEW_LINK"] = {
+            text = (L and L["WHATS_NEW_LINK_PROMPT"]) or "Copy this link:\nIt's already selected below - press Ctrl+C to copy it.",
+            button1 = OKAY,
+            hasEditBox = true,
+            editBoxWidth = 350,
+            -- Read the URL from popup.data (4th arg to StaticPopup_Show) and
+            -- use popup.editBox or legacy "<name>EditBox" as a fallback source.
+            OnShow = function(popup)
+                local edit = popup.editBox or (popup.GetName and _G[popup:GetName() .. "EditBox"])
+                if not edit then return end
+                local linkURL = popup.data and popup.data.url
+                edit:SetText(linkURL or "")
+                edit:HighlightText()
+                edit:SetFocus()
+            end,
+            EditBoxOnEnterPressed = function(popup) popup:GetParent():Hide() end,
+            EditBoxOnEscapePressed = function(popup) popup:GetParent():Hide() end,
+            timeout = 0,
+            whileDead = true,
+            hideOnEscape = true,
+            preferredIndex = 3,
+        }
+    end
+
+    StaticPopup_Show("EPITHET_WHATSNEW_LINK", nil, nil, { url = url })
+end
+
 function WhatsNew:EnsureDialog()
     if self.dialog then
         return self.dialog
@@ -290,61 +406,9 @@ function WhatsNew:EnsureDialog()
     end
     frame:Hide()
 
-    local heading = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
-    heading:SetPoint("TOPLEFT", 14, -12)
-    heading:SetPoint("TOPRIGHT", -40, -12)
-    heading:SetJustifyH("LEFT")
-
-    local closeButton = CreateFrame("Button", nil, frame)
-    closeButton:SetSize(18, 18)
-    closeButton:SetPoint("TOPRIGHT", -10, -10)
-    local closeText = closeButton:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    closeText:SetPoint("CENTER")
-    closeText:SetText("x")
-    closeText:SetTextColor(0.95, 0.90, 0.75)
-
-    local divider = frame:CreateTexture(nil, "BORDER")
-    divider:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -38)
-    divider:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -38)
-    divider:SetHeight(1)
-    divider:SetColorTexture(0.55, 0.45, 0.26, 0.35)
-
-    local scroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
-    scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", 18, -48)
-    scroll:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -38, 52)
-
-    local body = CreateFrame("Frame", nil, scroll)
-    body:SetWidth(BODY_WIDTH)
-    body:SetHeight(1)
-    body:SetPoint("TOPLEFT", scroll, "TOPLEFT", 0, 0)
-
-    scroll:SetScrollChild(body)
-
-    -- Bottom cutoff marker: draw in a dedicated overlay frame with higher
-    -- frame level than the scroll child so it always sits above content.
-    local scrollCutoffOverlay = CreateFrame("Frame", nil, frame)
-    scrollCutoffOverlay:SetPoint("TOPLEFT", scroll, "TOPLEFT", 0, 0)
-    scrollCutoffOverlay:SetPoint("BOTTOMRIGHT", scroll, "BOTTOMRIGHT", 0, 0)
-    scrollCutoffOverlay:SetFrameStrata(frame:GetFrameStrata())
-    scrollCutoffOverlay:SetFrameLevel((body:GetFrameLevel() or frame:GetFrameLevel() or 1) + 20)
-
-    local scrollCutoffBottom = scrollCutoffOverlay:CreateTexture(nil, "OVERLAY")
-    scrollCutoffBottom:SetPoint("BOTTOMLEFT", scrollCutoffOverlay, "BOTTOMLEFT", 0, 0)
-    scrollCutoffBottom:SetPoint("BOTTOMRIGHT", scrollCutoffOverlay, "BOTTOMRIGHT", 0, 0)
-    scrollCutoffBottom:SetHeight(1)
-    scrollCutoffBottom:SetColorTexture(0.95, 0.82, 0.48, 0.95)
-
-    local scrollCutoffBottomSoft = scrollCutoffOverlay:CreateTexture(nil, "OVERLAY")
-    scrollCutoffBottomSoft:SetPoint("BOTTOMLEFT", scrollCutoffBottom, "TOPLEFT", 0, 0)
-    scrollCutoffBottomSoft:SetPoint("BOTTOMRIGHT", scrollCutoffBottom, "TOPRIGHT", 0, 0)
-    scrollCutoffBottomSoft:SetHeight(1)
-    scrollCutoffBottomSoft:SetColorTexture(0.95, 0.82, 0.48, 0.35)
-
-    local dismiss = CreateFrame("Button", nil, frame)
-    dismiss:SetSize(220, 24)
-    dismiss:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -12, 14)
-
-    local function Skin(button)
+    -- Applies shared bordered button chrome.
+    -- Text label when iconPath is nil; centered icon when provided.
+    local function Skin(button, iconPath)
         local bg = button:CreateTexture(nil, "BACKGROUND")
         bg:SetAllPoints()
         bg:SetColorTexture(0.11, 0.08, 0.04, 1.0)
@@ -374,21 +438,95 @@ function WhatsNew:EnsureDialog()
         right:SetPoint("BOTTOMRIGHT")
         right:SetColorTexture(0.49, 0.37, 0.15, 1.0)
 
-        local label = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        label:SetPoint("CENTER")
-        label:SetTextColor(0.91, 0.78, 0.45)
-        button.label = label
+        if iconPath then
+            local icon = button:CreateTexture(nil, "OVERLAY")
+            icon:SetSize(18, 18)
+            icon:SetPoint("CENTER")
+            icon:SetTexture(iconPath)
+            icon:SetVertexColor(0.91, 0.78, 0.45)
+            button.icon = icon
 
-        button:SetScript("OnEnter", function(self_)
-            self_.bg:SetColorTexture(0.16, 0.12, 0.07, 1.0)
-            self_.label:SetTextColor(0.96, 0.89, 0.65)
-        end)
+            button:SetScript("OnEnter", function(self_)
+                self_.bg:SetColorTexture(0.16, 0.12, 0.07, 1.0)
+                self_.icon:SetVertexColor(0.96, 0.89, 0.65)
+            end)
+            button:SetScript("OnLeave", function(self_)
+                self_.bg:SetColorTexture(0.11, 0.08, 0.04, 1.0)
+                self_.icon:SetVertexColor(0.91, 0.78, 0.45)
+            end)
+        else
+            local label = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            label:SetPoint("CENTER")
+            label:SetTextColor(0.91, 0.78, 0.45)
+            button.label = label
 
-        button:SetScript("OnLeave", function(self_)
-            self_.bg:SetColorTexture(0.11, 0.08, 0.04, 1.0)
-            self_.label:SetTextColor(0.91, 0.78, 0.45)
-        end)
+            button:SetScript("OnEnter", function(self_)
+                self_.bg:SetColorTexture(0.16, 0.12, 0.07, 1.0)
+                self_.label:SetTextColor(0.96, 0.89, 0.65)
+            end)
+            button:SetScript("OnLeave", function(self_)
+                self_.bg:SetColorTexture(0.11, 0.08, 0.04, 1.0)
+                self_.label:SetTextColor(0.91, 0.78, 0.45)
+            end)
+        end
     end
+
+    -- Header logo texture displayed to the left of the title.
+    local logo = frame:CreateTexture(nil, "ARTWORK")
+    logo:SetSize(28, 28)
+    logo:SetPoint("TOPLEFT", 14, -10)
+    logo:SetTexture("Interface\\AddOns\\Epithet\\icons\\logo\\epithet-wax-seal-red-mark-32")
+
+    local heading = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+    heading:SetPoint("LEFT", logo, "RIGHT", 8, 0)
+    heading:SetPoint("RIGHT", frame, "RIGHT", -46, 0)
+    heading:SetJustifyH("LEFT")
+
+    -- Header close button using the shared icon-button skin.
+    local closeButton = CreateFrame("Button", nil, frame)
+    closeButton:SetSize(26, 26)
+    closeButton:SetPoint("TOPRIGHT", -8, -8)
+    Skin(closeButton, "Interface\\AddOns\\Epithet\\icons\\ui\\epithet-ui-close-16")
+
+    local divider = frame:CreateTexture(nil, "BORDER")
+    divider:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -38)
+    divider:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -38)
+    divider:SetHeight(1)
+    divider:SetColorTexture(0.55, 0.45, 0.26, 0.35)
+
+    local scroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", 18, -48)
+    scroll:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -38, 52)
+
+    local body = CreateFrame("Frame", nil, scroll)
+    body:SetWidth(BODY_WIDTH)
+    body:SetHeight(1)
+    body:SetPoint("TOPLEFT", scroll, "TOPLEFT", 0, 0)
+
+    scroll:SetScrollChild(body)
+
+    -- Bottom cutoff markers rendered in an overlay above scroll content.
+    local scrollCutoffOverlay = CreateFrame("Frame", nil, frame)
+    scrollCutoffOverlay:SetPoint("TOPLEFT", scroll, "TOPLEFT", 0, 0)
+    scrollCutoffOverlay:SetPoint("BOTTOMRIGHT", scroll, "BOTTOMRIGHT", 0, 0)
+    scrollCutoffOverlay:SetFrameStrata(frame:GetFrameStrata())
+    scrollCutoffOverlay:SetFrameLevel((body:GetFrameLevel() or frame:GetFrameLevel() or 1) + 20)
+
+    local scrollCutoffBottom = scrollCutoffOverlay:CreateTexture(nil, "OVERLAY")
+    scrollCutoffBottom:SetPoint("BOTTOMLEFT", scrollCutoffOverlay, "BOTTOMLEFT", 0, 0)
+    scrollCutoffBottom:SetPoint("BOTTOMRIGHT", scrollCutoffOverlay, "BOTTOMRIGHT", 0, 0)
+    scrollCutoffBottom:SetHeight(1)
+    scrollCutoffBottom:SetColorTexture(0.95, 0.82, 0.48, 0.95)
+
+    local scrollCutoffBottomSoft = scrollCutoffOverlay:CreateTexture(nil, "OVERLAY")
+    scrollCutoffBottomSoft:SetPoint("BOTTOMLEFT", scrollCutoffBottom, "TOPLEFT", 0, 0)
+    scrollCutoffBottomSoft:SetPoint("BOTTOMRIGHT", scrollCutoffBottom, "TOPRIGHT", 0, 0)
+    scrollCutoffBottomSoft:SetHeight(1)
+    scrollCutoffBottomSoft:SetColorTexture(0.95, 0.82, 0.48, 0.35)
+
+    local dismiss = CreateFrame("Button", nil, frame)
+    dismiss:SetSize(220, 24)
+    dismiss:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -12, 14)
 
     Skin(dismiss)
     dismiss.label:SetText((L and L["WHATS_NEW_CLOSE"]) or "Close")
@@ -433,7 +571,13 @@ function WhatsNew:Show(version)
 end
 
 function WhatsNew:ShowForCurrentVersionIfNeeded()
+    -- Defers startup display and prevents multiple popup schedules per session.
     if self.shownThisSession or self.pendingShow then
+        return
+    end
+
+    local profile = ns.Epithet and ns.Epithet.db and ns.Epithet.db.profile
+    if profile and profile.showWhatsNewOnStartup == false then
         return
     end
 

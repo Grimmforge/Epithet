@@ -55,6 +55,7 @@ Theme.quality = {
 
 -- ---- rarity gem icon paths, shared so UI/MainFrame.lua, UI/Detail.lua and
 -- UI/TitleList.lua stay in sync if a new quality tier is ever added --------
+-- Indexed by quality tier 1..5 (Common -> Legendary); callers can index by q directly.
 Theme.RarityGems32 = {
     "Interface\\AddOns\\Epithet\\icons\\rarity\\epithet-rarity-1-common-32",
     "Interface\\AddOns\\Epithet\\icons\\rarity\\epithet-rarity-2-uncommon-32",
@@ -119,6 +120,19 @@ local function ApplyFont(fontLike, preferred, client, size, flags)
     fontLike:SetFont(client, size, flags)
 end
 
+-- Unconditionally applies the bundled Unicode Sans font (PT Sans: Latin +
+-- Cyrillic), regardless of the active display locale. Theme.Sans/SansFontPath
+-- gate on NeedsBundledFont() because most text is purely in the active
+-- locale's own script, but some content (e.g. the WhatsNew popup's
+-- multilingual headings) deliberately mixes scripts on a single line, so a
+-- reader on an English or French client can still land on Cyrillic text that
+-- the client font can't render. Falls back to the client font exactly like
+-- ApplyFont does if the bundled file is ever missing.
+function Theme.ApplyUnicodeSansFont(fontLike, size, flags)
+    if not fontLike then return end
+    ApplyFont(fontLike, BUNDLED_SANS, CLIENT_SANS, size or 12, flags)
+end
+
 function Theme.Serif(parent, size, col)
     local fs = parent:CreateFontString(nil, "OVERLAY")
     ApplyFont(fs, Theme.SerifFontPath(), CLIENT_SERIF, size or 16)
@@ -136,6 +150,7 @@ end
 -- Shared font OBJECT for Blizzard template widgets (dropdowns) that take a
 -- fontObject instead of a raw SetFont. Returns nil when the client fonts already
 -- cover the active locale, so those widgets keep their default look unchanged.
+-- Returned objects are cached per size and shared, so treat them as immutable.
 local localeFontObjects = {}
 function Theme.LocaleFontObject(size)
     if not NeedsBundledFont() then return nil end
@@ -159,6 +174,55 @@ function Theme.ApplyLocaleFont(fontLike)
     if not fontLike or not NeedsBundledFont() then return end
     local _, size, flags = fontLike:GetFont()
     ApplyFont(fontLike, BUNDLED_SANS, CLIENT_SANS, size or 12, flags)
+end
+
+-- Public form of the gate, so callers can skip bookkeeping (e.g. "already done"
+-- flags) that would otherwise latch on a run where this was a no-op.
+function Theme.NeedsLocaleFont() return NeedsBundledFont() end
+
+-- Re-points EVERY FontString under `frame` at the bundled face.
+--
+-- Per-widget opt-in does not scale: Blizzard templates and XML-defined
+-- FontStrings never route through Theme.Sans/Serif, so each one that nobody
+-- remembered to call Theme.ApplyLocaleFont on renders as boxes — which is
+-- exactly what the list header, row source lines, type pills, detail meta rows
+-- and most of the options panel were doing. Walking a panel once after it is
+-- built catches all of them, including widgets a template added for us.
+--
+-- The client serif maps to the bundled serif and everything else to the bundled
+-- sans, so the theme's type pairing survives the sweep. FontStrings already on a
+-- bundled face are left untouched, which keeps Theme.Serif headings serif.
+local MAX_FONT_TREE_DEPTH = 12
+function Theme.ApplyLocaleFontToTree(frame, depth)
+    if not frame or not NeedsBundledFont() then return end
+
+    depth = (depth or 0) + 1
+    if depth > MAX_FONT_TREE_DEPTH then return end
+
+    if frame.GetRegions then
+        local regions = { frame:GetRegions() }
+        for i = 1, #regions do
+            local region = regions[i]
+            if region and region.GetObjectType and region:GetObjectType() == "FontString" and region.GetFont then
+                local current, size, flags = region:GetFont()
+                if current ~= BUNDLED_SANS and current ~= BUNDLED_SERIF then
+                    local isSerif = type(current) == "string"
+                        and current:upper():find("MORPHEUS", 1, true) ~= nil
+                    ApplyFont(region,
+                        isSerif and BUNDLED_SERIF or BUNDLED_SANS,
+                        isSerif and CLIENT_SERIF or CLIENT_SANS,
+                        size or 12, flags)
+                end
+            end
+        end
+    end
+
+    if frame.GetChildren then
+        local children = { frame:GetChildren() }
+        for i = 1, #children do
+            Theme.ApplyLocaleFontToTree(children[i], depth)
+        end
+    end
 end
 
 -- caps "display" label (caller uppercases text before setting)

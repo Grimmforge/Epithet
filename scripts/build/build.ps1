@@ -16,8 +16,8 @@ $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $tocFile = Join-Path $root "Epithet.toc"
 
 # Interface versions
-$INTERFACE_LIVE = "120007"
-$INTERFACE_PTR  = "120100"
+$INTERFACE_LIVE = "120100"   # 12.1.0, live since 2026-08-11
+$INTERFACE_PTR  = "120105"   # 12.1.5 PTR
 
 # --- Version bump ---
 if ($Bump) {
@@ -75,10 +75,24 @@ function Build-Variant {
 
     # Copy addon files
     Copy-Item (Join-Path $root "Epithet.toc") -Destination $addonDir
+    Copy-Item (Join-Path $root "LICENSE") -Destination $addonDir
+    Copy-Item (Join-Path $root "NOTICE") -Destination $addonDir
 
     # Copy directories (names must match TOC paths exactly for case-sensitive OS)
     Copy-Item (Join-Path $root "Core") -Destination (Join-Path $addonDir "Core") -Recurse
+
+    # Developer-only modules must not ship. They are gitignored and commented out
+    # of the TOC for public builds, but Core/ is copied wholesale so they would
+    # otherwise still ride along inside the zip. Pattern-based so any future
+    # *.local.lua is covered without touching this again.
+    Get-ChildItem (Join-Path $addonDir "Core") -Filter "*.local.lua" -Recurse -File |
+        Remove-Item -Force
     Copy-Item (Join-Path $root "data") -Destination (Join-Path $addonDir "data") -Recurse
+    # Fonts carries the bundled Unicode faces (PT Sans/Serif). Without them
+    # Theme.lua's SetFont fails and falls back to the client font, so any locale
+    # in BUNDLED_FONT_LOCALES (Russian) renders as boxes in a packaged build even
+    # though it looks fine running from the repo folder.
+    Copy-Item (Join-Path $root "Fonts") -Destination (Join-Path $addonDir "Fonts") -Recurse
     Copy-Item (Join-Path $root "Locales") -Destination (Join-Path $addonDir "Locales") -Recurse
     Copy-Item (Join-Path $root "Spotting") -Destination (Join-Path $addonDir "Spotting") -Recurse
     Copy-Item (Join-Path $root "UI") -Destination (Join-Path $addonDir "UI") -Recurse
@@ -124,5 +138,5 @@ Get-ChildItem $releaseAddonDir -Recurse | ForEach-Object {
 }
 Write-Host ""
 Write-Host "Ready to upload to CurseForge:" -ForegroundColor Green
-Write-Host "  dist/Epithet-$version-release.zip  -> The War Within (live)" -ForegroundColor White
+Write-Host "  dist/Epithet-$version-release.zip  -> Midnight (live)" -ForegroundColor White
 Write-Host "  dist/Epithet-$version-ptr.zip      -> PTR/Beta" -ForegroundColor White

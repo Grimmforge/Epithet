@@ -28,6 +28,19 @@ local MUTED    = col.muted   or { r = 0.61, g = 0.55, b = 0.42 }
 
 local INSET = 16
 
+-- Source-card scroll region. The gutter is the space reserved on the card's right
+-- edge for the scrollbar, so text never runs underneath it even when the bar is
+-- hidden (keeping the wrap width identical whether or not the content overflows).
+local SCROLLBAR_GUTTER = 16
+local SCROLLBAR_WIDTH  = 4
+local SCROLL_STEP      = 28
+local SCROLL_BOTTOM_PAD = 4
+local SIGIL_SIZE       = 34
+local SIGIL_GAP        = 10
+local OBTAIN_INDENT    = 22
+-- Space under the source card, sized to hold the overflow hint.
+local HINT_GAP         = 16
+
 -- Scratch tables (reused per Refresh to avoid allocation)
 local scratchParts = {}
 
@@ -252,44 +265,83 @@ function Detail:InitSourceCard()
     local card = CreateFrame("Frame", nil, panel, "InsetFrameTemplate3")
     card:SetPoint("TOPLEFT", self.rarityCard, "BOTTOMLEFT", 0, -12)
     card:SetPoint("RIGHT", panel, "RIGHT", -INSET, 0)
-    card:SetPoint("BOTTOM", self.favButton, "TOP", 0, 12)
+    -- Gap is fixed rather than grown only when the hint is showing. A dynamic gap
+    -- would resize the card as the hint appears, which changes the viewport height
+    -- and so can change whether the content overflows at all — hint on, card
+    -- shrinks, no longer overflows, hint off, card grows, overflows again.
+    card:SetPoint("BOTTOM", self.favButton, "TOP", 0, HINT_GAP)
     self.sourceCard = card
 
-    local heading = card:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    heading:SetPoint("TOPLEFT", 12, -12)
+    -- The card itself stays put between the rarity card and the action footer;
+    -- only its interior scrolls. Obtainability prose runs to a full paragraph on
+    -- some titles (more so once translated), which used to overflow the card and
+    -- collide with the meta rows pinned to its bottom edge.
+    local scroll = CreateFrame("ScrollFrame", nil, card)
+    scroll:SetPoint("TOPLEFT", 12, -12)
+    scroll:SetPoint("BOTTOMRIGHT", -SCROLLBAR_GUTTER, 12)
+    self.sourceScroll = scroll
+
+    local content = CreateFrame("Frame", nil, scroll)
+    content:SetPoint("TOPLEFT")
+    content:SetSize(1, 1) -- real size applied by SyncSourceScrollSize
+    scroll:SetScrollChild(content)
+    self.sourceContent = content
+
+    scroll:SetScript("OnSizeChanged", function() self:SyncSourceScrollSize() end)
+    -- The card is the frame that actually resizes with the window; the scroll
+    -- follows it. Hooking both means the child width is corrected whichever one
+    -- the layout pass reports first.
+    card:HookScript("OnSizeChanged", function() self:SyncSourceScrollSize() end)
+    scroll:EnableMouseWheel(true)
+    scroll:SetScript("OnMouseWheel", function(self_, delta)
+        local range = Detail:GetSourceScrollRange()
+        if range <= 0 then return end
+        local target = self_:GetVerticalScroll() - (delta * SCROLL_STEP)
+        if target < 0 then target = 0 elseif target > range then target = range end
+        self_:SetVerticalScroll(target)
+        Detail:UpdateSourceScrollBar()
+    end)
+
+    self:InitSourceScrollBar(card)
+
+    local heading = content:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    heading:SetPoint("TOPLEFT", 0, 0)
     heading:SetText(L["HOW_TO_OBTAIN"])
     heading:SetTextColor(GOLD_DIM.r, GOLD_DIM.g, GOLD_DIM.b)
     self.sourceHeading = heading
 
     -- Sigil chip
-    local sigilBG = card:CreateTexture(nil, "ARTWORK")
+    local sigilBG = content:CreateTexture(nil, "ARTWORK")
     sigilBG:SetSize(34, 34)
     sigilBG:SetPoint("TOPLEFT", heading, "BOTTOMLEFT", 0, -10)
     sigilBG:SetColorTexture(0.12, 0.10, 0.06, 0.8)
     self.sigilBG = sigilBG
 
-    local sigil = card:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    local sigil = content:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     sigil:SetPoint("CENTER", sigilBG, "CENTER")
     sigil:SetTextColor(GOLD.r, GOLD.g, GOLD.b)
     self.sigil = sigil
 
     -- Category icon overlay (preferred over letter when available)
-    local sigilIcon = card:CreateTexture(nil, "OVERLAY")
+    local sigilIcon = content:CreateTexture(nil, "OVERLAY")
     sigilIcon:SetSize(24, 24)
     sigilIcon:SetPoint("CENTER", sigilBG, "CENTER")
     sigilIcon:SetVertexColor(GOLD.r, GOLD.g, GOLD.b)
     sigilIcon:Hide()
     self.sigilIcon = sigilIcon
 
-    local kindLabel = card:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    -- Wrapping widths are set explicitly by SyncSourceScrollSize rather than by a
+    -- RIGHT anchor. An anchor would make the wrap width depend on the scroll
+    -- child, which is sized late and re-sized again when the footer below the card
+    -- moves — so the text could be laid out against a stale width. An explicit
+    -- width is resolved the moment it is set, whatever the layout pass is doing.
+    local kindLabel = content:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     kindLabel:SetPoint("TOPLEFT", sigilBG, "TOPRIGHT", 10, -2)
-    kindLabel:SetPoint("RIGHT", card, "RIGHT", -12, 0)
     kindLabel:SetJustifyH("LEFT")
     self.kindLabel = kindLabel
 
-    local sourceLink = CreateFrame("Button", nil, card)
+    local sourceLink = CreateFrame("Button", nil, content)
     sourceLink:SetPoint("TOPLEFT", kindLabel, "BOTTOMLEFT", 0, -2)
-    sourceLink:SetPoint("RIGHT", card, "RIGHT", -12, 0)
     sourceLink:SetHeight(16)
     local linkText = sourceLink:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     linkText:SetPoint("LEFT")
@@ -302,18 +354,16 @@ function Detail:InitSourceCard()
     sourceLink:SetScript("OnClick", function() self:OnSourceLinkClick() end)
     self.sourceLink = sourceLink
 
-    local desc = card:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    local desc = content:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     desc:SetPoint("TOPLEFT", sigilBG, "BOTTOMLEFT", 0, -12)
-    desc:SetPoint("RIGHT", card, "RIGHT", -12, 0)
     desc:SetJustifyH("LEFT")
     desc:SetTextColor(0.78, 0.74, 0.66)
     desc:SetSpacing(2)
     self.descText = desc
 
     -- Obtainability banner (icon + label, shown only for unobtainable/feat titles)
-    local obtainRow = CreateFrame("Frame", nil, card)
+    local obtainRow = CreateFrame("Frame", nil, content)
     obtainRow:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, -10)
-    obtainRow:SetPoint("RIGHT", card, "RIGHT", -12, 0)
     obtainRow:SetHeight(20)
     obtainRow:Hide()
     self.obtainRow = obtainRow
@@ -329,9 +379,8 @@ function Detail:InitSourceCard()
     obtainLabel:SetJustifyH("LEFT")
     self.obtainLabel = obtainLabel
 
-    local obtainReason = card:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    local obtainReason = content:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
     obtainReason:SetPoint("TOPLEFT", obtainRow, "BOTTOMLEFT", 22, -4)
-    obtainReason:SetPoint("RIGHT", card, "RIGHT", -12, 0)
     obtainReason:SetJustifyH("LEFT")
     obtainReason:SetTextColor(0.58, 0.52, 0.42)
     obtainReason:SetSpacing(2)
@@ -342,12 +391,215 @@ function Detail:InitSourceCard()
     -- a middle-dot (U+00B7) separator that some locale game fonts lack. Per-line
     -- colour is applied via |cff codes in the text, so the base colour here is
     -- just a fallback.
-    local meta = (T and T.Sans and T.Sans(card, 11, MUTED))
-        or card:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-    meta:SetPoint("BOTTOMLEFT", card, "BOTTOMLEFT", 12, 12)
-    meta:SetPoint("RIGHT", card, "RIGHT", -12, 0)
+    --
+    -- Now flows after the obtainability prose instead of being pinned to the
+    -- card's bottom edge: inside a scrolling child a bottom anchor would peg it
+    -- to the viewport rather than the end of the content.
+    local meta = (T and T.Sans and T.Sans(content, 11, MUTED))
+        or content:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
     meta:SetJustifyH("LEFT")
     self.metaText = meta
+
+    self:SyncSourceScrollSize()
+end
+
+-- ---------------------------------------------------------------------------
+-- Source-card scrolling
+-- ---------------------------------------------------------------------------
+-- Slim themed bar rather than UIPanelScrollFrameTemplate, whose Blizzard artwork
+-- would sit oddly against the card. Hidden entirely when nothing overflows.
+function Detail:InitSourceScrollBar(card)
+    local track = card:CreateTexture(nil, "ARTWORK")
+    track:SetWidth(SCROLLBAR_WIDTH)
+    track:SetPoint("TOPRIGHT", -6, -12)
+    track:SetPoint("BOTTOMRIGHT", -6, 12)
+    track:SetColorTexture(0.16, 0.13, 0.08, 0.7)
+    track:Hide()
+    self.sourceScrollTrack = track
+
+    local thumb = card:CreateTexture(nil, "OVERLAY")
+    thumb:SetWidth(SCROLLBAR_WIDTH)
+    thumb:SetPoint("TOPRIGHT", track, "TOPRIGHT", 0, 0)
+    thumb:SetHeight(20)
+    thumb:SetColorTexture(GOLD_DIM.r, GOLD_DIM.g, GOLD_DIM.b, 0.85)
+    thumb:Hide()
+    self.sourceScrollThumb = thumb
+
+    -- Overflow hint for hover preview. The preview cannot be scrolled (the cursor
+    -- is out over the list), so the scrollbar alone would advertise content the
+    -- reader has no way to reach. Sits in the gap between the card and the footer,
+    -- and is parented to the card so the empty state takes it down too.
+    local hint = (T and T.Sans and T.Sans(card, 10, MUTED))
+        or card:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    hint:SetPoint("TOP", card, "BOTTOM", 0, -1)
+    hint:SetJustifyH("CENTER")
+    hint:SetText(L["DETAIL_MORE_ON_SELECT"])
+    hint:SetTextColor(GOLD_DIM.r, GOLD_DIM.g, GOLD_DIM.b, 0.9)
+    hint:Hide()
+    self.moreHint = hint
+end
+
+-- Keeps the scroll child exactly as wide as the viewport. This is what makes the
+-- prose wrap: a FontString anchored LEFT+RIGHT inside the child derives its width
+-- from the child, so a child stuck at its placeholder width leaves every wrapping
+-- line effectively unconstrained.
+--
+-- A frame sized purely by anchors reports GetWidth() == 0 until the first layout
+-- pass, which is exactly when InitSourceCard runs. The card fallback covers that
+-- first call, and the OnSizeChanged hooks plus the per-refresh call keep it right
+-- afterwards.
+function Detail:SyncSourceScrollSize()
+    local scroll, content = self.sourceScroll, self.sourceContent
+    if not (scroll and content) then return end
+
+    local w = scroll:GetWidth()
+    if (not w or w <= 0) and self.sourceCard then
+        local cardW = self.sourceCard:GetWidth()
+        if cardW and cardW > 0 then
+            w = cardW - 12 - SCROLLBAR_GUTTER
+        end
+    end
+
+    if not w or w <= 0 then return end
+
+    if math.abs((content:GetWidth() or 0) - w) > 0.5 then
+        content:SetWidth(w)
+    end
+
+    -- Explicit wrap widths for everything that can run long. Offsets mirror the
+    -- anchors: the kind/link column starts past the 34px sigil chip plus its 10px
+    -- gap, and the obtainability prose is indented 22px under its banner row.
+    local sideW = math.max(1, w - (SIGIL_SIZE + SIGIL_GAP))
+    self.kindLabel:SetWidth(sideW)
+    self.sourceLink:SetWidth(sideW)
+    self.descText:SetWidth(w)
+    self.obtainRow:SetWidth(w)
+    self.obtainReason:SetWidth(math.max(1, w - OBTAIN_INDENT))
+    self.metaText:SetWidth(w)
+
+    self:UpdateSourceScrollHeight()
+end
+
+-- Content height is summed from the laid-out pieces rather than measured, so it
+-- is correct in the same frame the text is set (GetTop/GetBottom lag a frame
+-- behind a SetText).
+function Detail:UpdateSourceScrollHeight()
+    local scroll, content = self.sourceScroll, self.sourceContent
+    if not (scroll and content) then return end
+
+    local h = self.sourceHeading:GetStringHeight() or 12
+    h = h + 10
+
+    -- Sigil chip sits beside the kind/link column; the taller of the two wins.
+    local sideColumn = (self.kindLabel:GetStringHeight() or 12) + 2
+    if self.sourceLink:IsShown() then
+        sideColumn = sideColumn + self.sourceLink:GetHeight()
+    end
+    h = h + math.max(self.sigilBG:GetHeight() or 34, sideColumn)
+
+    if (self.descText:GetText() or "") ~= "" then
+        h = h + 12 + (self.descText:GetStringHeight() or 0)
+    end
+    if self.obtainRow:IsShown() then
+        h = h + 10 + (self.obtainRow:GetHeight() or 20)
+    end
+    if self.obtainReason:IsShown() then
+        h = h + 4 + (self.obtainReason:GetStringHeight() or 0)
+    end
+    if (self.metaText:GetText() or "") ~= "" then
+        h = h + 12 + (self.metaText:GetStringHeight() or 0)
+    end
+    h = h + SCROLL_BOTTOM_PAD
+
+    -- Never shorter than the viewport, or the scroll range goes negative.
+    content:SetHeight(math.max(h, scroll:GetHeight() or 0, 1))
+
+    local range = self:GetSourceScrollRange()
+    if (scroll:GetVerticalScroll() or 0) > range then
+        scroll:SetVerticalScroll(range)
+    end
+    self:UpdateSourceScrollBar()
+end
+
+-- Scroll range measured from the frames directly rather than read back from
+-- ScrollFrame:GetVerticalScrollRange().
+--
+-- That API is only recalculated on the ScrollFrame's own update, so immediately
+-- after UpdateSourceScrollHeight sets a new child height it still reports the
+-- PREVIOUS title's range. Selecting a title happened to work anyway, because a
+-- later size change or wheel event re-ran this with a settled value — but on
+-- hover nothing follows the refresh, so the overflow hint was being decided from
+-- a stale number and stayed hidden. Both values here are known exactly at the
+-- moment they are needed: the child height is one we set ourselves.
+function Detail:GetSourceScrollRange()
+    local scroll, content = self.sourceScroll, self.sourceContent
+    if not (scroll and content) then return 0, 0 end
+
+    local viewH = scroll:GetHeight() or 0
+    local range = (content:GetHeight() or 0) - viewH
+    if range < 0 then range = 0 end
+    return range, viewH
+end
+
+-- Re-sync once the layout has settled.
+--
+-- The pane's height is not final while Refresh is running: clearing the preview
+-- banner collapses it to zero height, which lifts the title, sub-line and rarity
+-- card and so makes the source card TALLER, and the footer is rewritten after the
+-- source card too. Every one of those changes the viewport height, but they land
+-- after RefreshSourceCard has already measured it — which is why selecting a
+-- title kept the preview's shorter height and never showed the scrollbar.
+--
+-- The immediate pass still runs, so there is no visible flicker in the common
+-- case; this only corrects the frames where the column moved underneath it.
+function Detail:ScheduleSourceScrollSync()
+    if self.scrollSyncPending then return end
+    if not (C_Timer and C_Timer.After) then return end
+
+    self.scrollSyncPending = true
+    C_Timer.After(0, function()
+        self.scrollSyncPending = false
+        self:SyncSourceScrollSize()
+    end)
+end
+
+function Detail:UpdateSourceScrollBar()
+    local scroll = self.sourceScroll
+    local track, thumb = self.sourceScrollTrack, self.sourceScrollThumb
+    if not (scroll and track and thumb) then return end
+
+    local range, viewH = self:GetSourceScrollRange()
+    local overflows = (range > 1) and (viewH > 0)
+
+    -- The two overflow affordances are mutually exclusive, because only one of
+    -- them is actionable at a time. Hovering a row leaves the cursor out over the
+    -- list, so the pane cannot be scrolled and a scrollbar would only point at
+    -- text the reader cannot reach; the hint tells them how to reach it instead.
+    -- Once selected the pane is scrollable, so the bar does the job and the hint
+    -- would be telling them to do what they have already done.
+    local hovering = (self.lastIsHover == true)
+
+    if self.moreHint then
+        self.moreHint:SetShown(overflows and hovering)
+    end
+
+    if not overflows or hovering then
+        track:Hide()
+        thumb:Hide()
+        return
+    end
+
+    track:Show()
+    thumb:Show()
+
+    local contentH = viewH + range
+    local thumbH = math.max(20, viewH * (viewH / contentH))
+    local travel = viewH - thumbH
+    local progress = (scroll:GetVerticalScroll() or 0) / range
+
+    thumb:SetHeight(thumbH)
+    thumb:ClearAllPoints()
+    thumb:SetPoint("TOPRIGHT", track, "TOPRIGHT", 0, -(travel * progress))
 end
 
 -- ---------------------------------------------------------------------------
@@ -522,8 +774,15 @@ function Detail:Refresh(force)
     if not force and record == self.lastRecord and isHover == self.lastIsHover then
         return
     end
+    local recordChanged = (record ~= self.lastRecord)
     self.lastRecord = record
     self.lastIsHover = isHover
+
+    -- Land at the top of a newly shown title's prose rather than wherever the
+    -- previous one happened to be scrolled to.
+    if recordChanged and self.sourceScroll then
+        self.sourceScroll:SetVerticalScroll(0)
+    end
 
     -- Dismiss rarity info popup on any selection/hover change
     if self.rarityModal and self.rarityModal:IsShown() then
@@ -600,13 +859,12 @@ function Detail:RefreshRarityCard(record)
     end
 
     if record.rarity then
-        if T then
-            self.rarityPct:SetText(
-                "Held by an estimated " .. T.Wrap(T.col.goldBright.hex, tostring(record.rarity)) .. "% of active characters."
-            )
-        else
-            self.rarityPct:SetText(format(L["HELD_BY_ESTIMATE"], tostring(record.rarity)))
-        end
+        -- The %s carries the colour wrap, so the localised sentence keeps its own
+        -- word order. (This branch used to concatenate a hardcoded English string,
+        -- which left HELD_BY_ESTIMATE unreachable and this line untranslated.)
+        local pctText = T and T.Wrap(T.col.goldBright.hex, tostring(record.rarity))
+            or tostring(record.rarity)
+        self.rarityPct:SetText(format(L["HELD_BY_ESTIMATE"], pctText))
     else
         self.rarityPct:SetText("")
     end
@@ -629,6 +887,11 @@ function Detail:RefreshRarityCard(record)
 end
 
 function Detail:RefreshSourceCard(record)
+    -- Re-sync before writing any text. By the time a record is shown the pane has
+    -- been laid out, so this is the call that reliably lands a real width on the
+    -- scroll child even if every earlier attempt saw zero.
+    self:SyncSourceScrollSize()
+
     -- Raw DB codes (English) — used ONLY for keying the icon/sigil lookup
     -- tables below. Never display these directly; see kindLabel a few lines
     -- down for the localised text shown to the player.
@@ -694,7 +957,7 @@ function Detail:RefreshSourceCard(record)
 
     -- Obtainability reason (shown below the banner when present)
     local reason = record.obtainability_reason
-    if reason and reason ~= "" and (obt == "no" or obt == "feat") then
+    if reason and reason ~= "" then
         self.obtainReason:SetText(reason)
         self.obtainReason:Show()
     else
@@ -755,6 +1018,24 @@ function Detail:RefreshSourceCard(record)
     end
 
     self.metaText:SetText(table.concat(lines, "\n"))
+
+    -- Re-anchor to whichever block above it is actually visible. A hidden region
+    -- keeps its anchors, so chaining off obtainReason unconditionally would leave
+    -- a gap on every title that has no obtainability prose.
+    local anchor, indent = self.descText, 0
+    if self.obtainReason:IsShown() then
+        anchor, indent = self.obtainReason, -22 -- cancel obtainReason's own indent
+    elseif self.obtainRow:IsShown() then
+        anchor = self.obtainRow
+    end
+
+    -- TOPLEFT only: the width comes from SyncSourceScrollSize, and a RIGHT anchor
+    -- here would override it.
+    self.metaText:ClearAllPoints()
+    self.metaText:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", indent, -12)
+
+    self:UpdateSourceScrollHeight()
+    self:ScheduleSourceScrollSync()
 end
 
 function Detail:RefreshActionButton(record)
@@ -818,13 +1099,61 @@ end
 function Detail:OnSourceLinkClick()
     local record = ns.MainFrame:GetDetailRecord()
     if not record then return end
-    if not record.achievement_id then return end
-    if C_AchievementInfo and C_AchievementInfo.IsValidAchievement and not C_AchievementInfo.IsValidAchievement(record.achievement_id) then return end
+    local achievementID = tonumber(record.achievement_id)
+    if not achievementID then return end
     if not AchievementFrame then
-        if UIParentLoadAddOn then UIParentLoadAddOn("Blizzard_AchievementUI") end
+        if UIParentLoadAddOn then
+            UIParentLoadAddOn("Blizzard_AchievementUI")
+        elseif C_AddOns and C_AddOns.LoadAddOn then
+            C_AddOns.LoadAddOn("Blizzard_AchievementUI")
+        end
     end
+
+    local opened = false
+
     if OpenAchievementFrameToAchievement then
-        OpenAchievementFrameToAchievement(record.achievement_id)
+        OpenAchievementFrameToAchievement(achievementID)
+        opened = true
+    else
+        if AchievementFrame then
+            if not AchievementFrame:IsShown() then
+                if ShowUIPanel then
+                    ShowUIPanel(AchievementFrame)
+                else
+                    AchievementFrame:Show()
+                end
+            end
+            opened = AchievementFrame:IsShown()
+        elseif ToggleAchievementFrame then
+            -- Last-resort fallback for clients where explicit show APIs are absent.
+            -- Guarding against IsShown avoids the open/close toggle behaviour.
+            ToggleAchievementFrame()
+            opened = true
+        end
+
+        -- Some clients expose explicit selection APIs but not
+        -- OpenAchievementFrameToAchievement.
+        if AchievementFrame_SelectAchievement then
+            AchievementFrame_SelectAchievement(achievementID)
+        elseif AchievementFrame and AchievementFrame.SelectAchievement then
+            AchievementFrame:SelectAchievement(achievementID)
+        end
+    end
+
+    -- Blizzard's AchievementFrame is usually "MEDIUM", while EpithetMainFrame is
+    -- "HIGH" (see UI/MainFrame.xml). Lift the achievement UI above ours while it
+    -- is shown, then restore its original strata on hide.
+    if opened and AchievementFrame then
+        if not AchievementFrame.epithetOriginalStrata then
+            AchievementFrame.epithetOriginalStrata = AchievementFrame:GetFrameStrata() or "MEDIUM"
+        end
+        AchievementFrame:SetFrameStrata("DIALOG")
+        if not AchievementFrame.epithetStrataHooked then
+            AchievementFrame.epithetStrataHooked = true
+            AchievementFrame:HookScript("OnHide", function(self_)
+                self_:SetFrameStrata(self_.epithetOriginalStrata or "MEDIUM")
+            end)
+        end
     end
 end
 
