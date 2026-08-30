@@ -2,6 +2,44 @@
 
 ---
 
+## [1.3.1] - 2026-08-30
+
+### Added
+
+- **German locale (deDE)** — Full German translation of the UI, settings, and What's New content, joining English, French, and Russian.
+- **Dedicated settings tabs** — Title Spotting and Achievements now each have their own settings tab instead of sharing one long page.
+- **What's New visibility toggle** — New "Show What's New after an update" option on the main settings page for suppressing the automatic popup.
+- **Portrait diagnostics** — Timestamped portrait pipeline event log, surfaced through the debug modal's new "Portraits: model state" dump, so portrait reports can be investigated from a single paste.
+
+### Changed
+
+- **Achievements decoupled from spotting** — Achievement notification and popup-anchor settings now work whether or not title spotting is enabled, and the Achievements tab explains which achievements pause while spotting is off.
+- **Nameplate layout measurement** — Title spotting nameplates measure and resize their layout more accurately, particularly with long titles.
+- **Layout picker ordering** — Portrait Card is always listed first in the layout picker.
+- **Logbook detail pane** — The detail pane now scrolls, with a hover hint when content overflows.
+- **Packaging** — LICENSE and NOTICE now ship inside packaged builds; interface updated for Patch 12.1 (120100), with the PTR variant targeting 12.1.5 (120105).
+
+### Fixed
+
+- **First-open 3D portrait** — The Title Spotting settings preview showed an empty portrait ring on the first open of each session. The settings panels were created shown-by-default, so the portrait camera was computed during the loading screen (aimed above the character's head) and the first display fired no OnShow to correct it. Panels are now created hidden, and the camera is framed when the model is genuinely on screen.
+- **Title false positives** — Certain NPC, critter, or item names could no longer be misread as a player wearing a title they don't actually have.
+- **Detail pane duplicates** — Deduplication fixes in the Logbook detail view.
+
+## [1.3.0] - 2026-08-05
+
+### Added
+
+- **French and Russian locales** — Full frFR and ruRU translations of the UI and What's New content, plus a Russian title-database overlay.
+- **Locale translation issue template** — GitHub issue template for reporting translation problems and volunteering new languages.
+
+### Changed
+
+- **Organization naming** — GitHub organization renamed for parity across CurseForge, GitHub, and third-party sites; README updated with banner attribution.
+
+### Fixed
+
+- **Non-Latin font coverage** — Fixed glyph coverage for non-Latin text and localised layout overflow; bundled Unicode fonts (PT Sans/Serif) now ship in packaged builds so Cyrillic renders correctly. Dev-only modules are kept out of the packaged build.
+
 ## [1.2.0] - 2026-07-17
 
 ### Added
@@ -44,8 +82,6 @@
 - **Title list meta row** — Each row in the title list now shows a third line with expansion and category (e.g. "The War Within · PvP Rank"), making it easier to scan the list without opening the detail panel.
 - **Source card descriptions** — The detail panel source card now shows richer contextual descriptions for achievement-, quest-, and item-sourced titles, and the obtainability reason is displayed below the unobtainable/feat-of-strength banner when present.
 - **Sort: favourites bubble up** — Within the earned group in "Collected First" sort mode, favourited titles are sorted above non-favourited ones.
-
----
 
 ## [1.0.0] [1.0.1] - Initial Release
 
