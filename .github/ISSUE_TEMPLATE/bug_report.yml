@@ -1,0 +1,71 @@
+name: Bug report
+description: Report a reproducible problem in Epithet
+title: "bug: <short summary>"
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please provide enough detail for us to reproduce and fix the issue.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Bug summary
+      description: A short description of the issue.
+      placeholder: e.g., Search results do not update after changing expansion filters
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the exact steps to reproduce this behavior.
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should happen instead?
+      placeholder: Describe the expected result.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What actually happens?
+      placeholder: Describe the observed result.
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Provide relevant environment details.
+      placeholder: |
+        - Addon version:
+        - Game version/patch:
+        - Region/locale:
+        - Any other relevant context:
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs, screenshots, or references
+      description: Add screenshots, logs, videos, or links that help diagnose the issue.
+      placeholder: Drag and drop files or paste links.
+    validations:
+      required: false

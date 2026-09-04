@@ -55,6 +55,7 @@ Theme.quality = {
 
 -- ---- rarity gem icon paths, shared so UI/MainFrame.lua, UI/Detail.lua and
 -- UI/TitleList.lua stay in sync if a new quality tier is ever added --------
+-- Indexed by quality tier 1..5 (Common -> Legendary); callers can index by q directly.
 Theme.RarityGems32 = {
     "Interface\\AddOns\\Epithet\\icons\\rarity\\epithet-rarity-1-common-32",
     "Interface\\AddOns\\Epithet\\icons\\rarity\\epithet-rarity-2-uncommon-32",
@@ -149,6 +150,7 @@ end
 -- Shared font OBJECT for Blizzard template widgets (dropdowns) that take a
 -- fontObject instead of a raw SetFont. Returns nil when the client fonts already
 -- cover the active locale, so those widgets keep their default look unchanged.
+-- Returned objects are cached per size and shared, so treat them as immutable.
 local localeFontObjects = {}
 function Theme.LocaleFontObject(size)
     if not NeedsBundledFont() then return nil end

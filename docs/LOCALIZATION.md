@@ -157,6 +157,23 @@ they fall back to English) and **orphan** keys not in `enGB` (errors — usually
 typo or a stale key). Also lints every locale for unsupported `\x` hex escapes.
 Exit code is non-zero on any error, so it can gate CI.
 
+It then scans the addon source (`Core\`, `UI\`, `Spotting\`, `WhatsNew\`,
+`Locales\LocaleManager.lua`) and compares it against the `enGB` base:
+
+- **Undefined** keys — an `L["KEY"]` the code looks up that *no* locale defines
+  (error, reported with the `file:line` that uses it). Coverage alone can't catch
+  these: every overlay sits at 100% while the base itself is missing the key, and
+  because `ns.L` falls back to the key *name*, the UI silently renders raw text
+  like `SOCIAL_LAYOUT_PORTRAIT_MODE`. **Add a key to `enGB.lua` in the same
+  commit as the code that uses it.**
+- **Unused** keys — defined in `enGB` but referenced nowhere (warning; stale
+  leftovers to prune from every locale).
+
+The scan is static, so keys assembled at runtime (`L["CAT_" .. code]`) are
+invisible to it. Those prefixes are listed in the script's `-DynamicKeyPrefixes`
+default and exempt from the unused warning — **add yours there** if you
+introduce a new concatenated key family, or it will be reported as stale.
+
 ## Localised title database
 
 The title database is separate from the UI strings above, but follows the same
