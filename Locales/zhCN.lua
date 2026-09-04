@@ -1,12 +1,17 @@
 -- =============================================================================
--- Epithet — Locale: zhCN
+-- Epithet — Locale: zhCN (default)
 -- NOTE: WoW Lua 5.1 does NOT support \xNN hex escapes. Use decimal byte escapes
 --       (e.g. \226\128\148 = em dash) or plain ASCII.
 -- =============================================================================
 local _, ns = ...
 
-if GetLocale() ~= "zhCN" then return end
-
+-- enGB is the base / default locale: the full English string set that every
+-- other locale overlays onto (untranslated keys fall back here). GetLocale()
+-- returns "enUS" for both US and GB clients, so this file also serves enUS.
+--
+-- The localisation machinery — the registry, the ns.L proxy, and the resolution
+-- API — lives in LocaleManager.lua, which loads first. This file just registers
+-- its strings into ns.Locales.
 ns.Locales = ns.Locales or {}
 
 local L = {}
@@ -99,7 +104,12 @@ L["SOURCE_LEGEND"] = "来源"
 
 -- Rarity explanation shown in the rarity info modal. Keep the wording in sync
 -- with the rarity algorithm (TitlesDBCollector rarity.js).
-L["RARITY_NOTE"] = "稀有度是一个 0-100 的百分比，用于估算该头衔在活跃玩家群体中的普及程度。100 表示持有率最高，<1 表示极其稀有。根据外部角色统计数据（在线流行度数据源）计算得出。品质层级 (q) 反映了其声望度：由来源背景决定（如竞技场角斗士=5，团队副本成就=3等），并对极少数玩家持有的永久绝版头衔进行稀有度提档（绝版 + <2% 持有率 = 史诗起步，<5% = 精良起步）。"
+L["RARITY_NOTE"] = "稀有度是一个 0-100 的百分比，用于估算该头衔在"..
+    "活跃玩家群体中的普及程度。100 表示持有率最高，<1 表示极其稀有。根据外部" ..
+    "角色统计数据（在线流行度数据源）计算得出。品质层级 (q) 反映了其声望度：" ..
+    "由来源背景决定（如竞技场角斗士=5，团队副本成就=3等），并对极少数" ..
+    "玩家持有的永久绝版头衔进行稀有度提档（绝版 + <2% 持有率 = 史诗" ..
+    "起步，<5% = 精良起步）。"
 
 -- Minimap
 L["MINIMAP_TOOLTIP_TITLE"] = "Epithet"
@@ -134,11 +144,17 @@ L["SOCIAL_LAYOUT_PORTRAIT"] = "头像卡片"
 L["SOCIAL_LAYOUT_PREVIEW"] = "布局预览"
 L["SOCIAL_LAYOUT_PREVIEW_NOTE"] = "预览使用的是示例数据。"
 L["SOCIAL_LAYOUT_FUNNY_TOGGLE"] = "显示搞笑长头衔预览"
+L["SOCIAL_LAYOUT_PORTRAIT_MODE"] = "目标头像模式"
+L["SOCIAL_LAYOUT_PORTRAIT_MODE_3D"] = "3D (动画)"
+L["SOCIAL_LAYOUT_PORTRAIT_MODE_2D"] = "2D (静态)"
+L["SOCIAL_LAYOUT_PORTRAIT_MODE_NOTE"] = "3D 使用动态模型，2D 使用静态头像材质。"
 L["SOCIAL_BEHAVIOUR_SECTION"] = "显示规则"
 L["SOCIAL_FADE_SECTION"] = "淡出"
 L["SOCIAL_FADE_ENABLE"] = "延迟后淡出目标姓名板"
 L["SOCIAL_FADE_DURATION"] = "淡出延迟"
 L["SOCIAL_FADE_DURATION_FMT"] = "%.1f 秒后淡出"
+L["SOCIAL_SHOW_SELF_TARGET"] = "选中自己时显示目标姓名板"
+L["SOCIAL_SELF_TARGET_NOTE"] = "显示自己的目标姓名板仅为视觉效果，选中自己绝不计入头衔发现成就。"
 L["SOCIAL_SPOTTING_NOTIFY"] = "在聊天框显示头衔发现确认"
 L["SOCIAL_ACHIEVEMENT_SECTION"] = "Achievements"
 L["SOCIAL_ACHIEVEMENT_LAYER_DESC"] = "成就弹窗涵盖了你自己的头衔收集以及你在他人身上发现的头衔。在此处配置弹窗提醒方式 — 头衔发现功能本身可在下方区域开启。"
@@ -422,7 +438,6 @@ L["AVAILABILITY_PERMANENT"] = "常驻"
 -- Previously-missing keys (had inline English fallbacks in code)
 L["SOCIAL_HIDE_IN_COMBAT"] = "战斗中隐藏目标姓名板"
 L["SOCIAL_HIDE_IN_GROUP"] = "组队时隐藏目标姓名板"
-L["SOCIAL_LAYOUT_ANIMATED_PORTRAIT_TOGGLE"] = "开启动态目标头像"
 L["SPOTTING_META_TITLE"] = "发现笔记"
 L["SPOTTING_META_DESC"] = "在开放世界中选中玩家，记录他们佩戴的头衔。"
 L["SPOT_ACHV_SECRET_EARNED_SUFFIX"] = "（隐藏）"
@@ -469,15 +484,15 @@ L["FADE_SLIDER_LOW"] = "0.5秒"
 L["FADE_SLIDER_HIGH"] = "20秒"
 
 -- Month names (used to format achievement earned dates: "dd Month yyyy")
-L["MONTH_1"]  = "1月"
-L["MONTH_2"]  = "2月"
-L["MONTH_3"]  = "3月"
-L["MONTH_4"]  = "4月"
-L["MONTH_5"]  = "5月"
-L["MONTH_6"]  = "6月"
-L["MONTH_7"]  = "7月"
-L["MONTH_8"]  = "8月"
-L["MONTH_9"]  = "9月"
+L["MONTH_1"] = "1月"
+L["MONTH_2"] = "2月"
+L["MONTH_3"] = "3月"
+L["MONTH_4"] = "4月"
+L["MONTH_5"] = "5月"
+L["MONTH_6"] = "6月"
+L["MONTH_7"] = "7月"
+L["MONTH_8"] = "8月"
+L["MONTH_9"] = "9月"
 L["MONTH_10"] = "10月"
 L["MONTH_11"] = "11月"
 L["MONTH_12"] = "12月"
@@ -530,7 +545,14 @@ L["LANGUAGE_ENGLISH"] = "English"
 L["LANGUAGE_RUSSIAN"] = "Русский"
 L["LANGUAGE_GERMAN"] = "Deutsch"
 L["LANGUAGE_FRENCH"] = "Français"
-L["LANGUAGE_CHINESE_SIMPLIFIED"] = "简体中文"
+L["LANGUAGE_SIMPLIFIED_CHINESE"] = "简体中文"
+
+-- Options: general section (main Epithet settings page)
+L["OPTIONS_GENERAL_SECTION"] = "General"
+L["OPTIONS_GENERAL_DESC"] = "应用于 Epithet 全局的设置。"
+L["OPTIONS_STARTUP_SECTION"] = "启动"
+L["OPTIONS_WHATSNEW_STARTUP_TOGGLE"] = "更新后显示“更新内容”"
+L["OPTIONS_WHATSNEW_STARTUP_NOTE"] = "仅在登录新版本时显示一次。你随时可以通过输入 /epithet whatsnew 重新打开它。"
 
 -- Options: language section
 L["OPTIONS_LANGUAGE_SECTION"] = "Language"
@@ -540,3 +562,5 @@ L["OPTIONS_LANGUAGE_NOTE"] = "设置 Epithet 使用的语言，独立于你的�
 L["OPTIONS_LANGUAGE_RELOAD_PROMPT"] = "是否立即更改 Epithet 的语言并重新加载界面？"
 L["RELOAD_NOW"] = "立即重载"
 L["LATER"] = "稍后"
+
+-- The locale registry, ns.L proxy, and resolution API live in LocaleManager.lua.
